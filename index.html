@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Slide Master - מחולל מצגות אוטומטי</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="description" content="צור מצגות PowerPoint מקצועיות ברגעים ספורים בעזרת בינה מלאכותית.">
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIkFJIFNsaWRlIE1hc3RlciIsCiAgInNob3J0X25hbWUiOiAiQUkgU2xpZGVzIiwKICAic3RhcnRfdXJsIjogIi4iLAogICJkaXNwbGF5IjogInN0YW5kYWxvbmUiLAogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmZmZmZmYiLAogICJ0aGVtZV9jb2xvciI6ICIjM2I4MmY2Igp9">
+
+    <!-- Stylesheets & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Rubik', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        accent: '#8b5cf6',
+                        dark: '#1e293b',
+                        light: '#f8fafc'
+                    },
+                    animation: {
+                        'spin-slow': 'spin 3s linear infinite',
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'slide-up': 'slideUp 0.3s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+
+        /* Drag & Drop Visuals */
+        .slide-card {
+            transition: all 0.2s ease;
+        }
+        .slide-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .dragging {
+            opacity: 0.5;
+            border: 2px dashed #3b82f6;
+        }
+
+        /* Utility classes for specific Hebrew typography */
+        .hebrew-text {
+            direction: rtl;
+            text-align: right;
+        }
+
+        /* Loading Overlay */
+        .loader-overlay {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased overflow-hidden h-screen">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        /*******************************************************
+         * CONSTANTS & UTILS
+         *******************************************************/
+        
+        const { useState, useEffect, useRef, useReducer, useCallback } = React;
+
+        // Content Policy Filter (Client Side)
+        const FORBIDDEN_TOPICS = [
+            'אלימות', 'רצח', 'דם', 'מין', 'עירום', 'סמים', 'הימורים', 
+            'דת', 'אלוהים', 'תנ"ך', 'קוראן', 'ברית חדשה', 'תפילה', 
+            'שבת', 'חג', 'כשרות', 'הלכה', 'רב', 'כנסייה', 'מסגד'
+        ];
+
+        const checkContentSafety = (text) => {
+            if (!text) return true;
+            const lowerText = text.toLowerCase();
+            return !FORBIDDEN_TOPICS.some(topic => lowerText.includes(topic));
+        };
+
+        const generateId = () => Math.random().toString(36).substr(2, 9);
+
+        // API Helper for Gemini
+        // Note: Using the specific model as requested in system instructions
+        const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+        const THEMES = {
+            modern: {
+                id: 'modern',
+                name: 'מודרני נקי',
+                bg: '#ffffff',
+                text: '#1e293b',
+                accent: '#3b82f6',
+                font: 'Arial',
+                pattern: 'none'
+            },
+            dark: {
+                id: 'dark',
+                name: 'דארק מוד',
+                bg: '#0f172a',
+                text: '#f8fafc',
+                accent: '#38bdf8',
+                font: 'Verdana',
+                pattern: 'dots'
+            },
+            corporate: {
+                id: 'corporate',
+                name: 'עסקי רשמי',
+                bg: '#f1f5f9',
+                text: '#334155',
+                accent: '#0f766e',
+                font: 'Times New Roman',
+                pattern: 'stripes'
+            },
+            playful: {
+                id: 'playful',
+                name: 'יצירתי',
+                bg: '#fff7ed',
+                text: '#431407',
+                accent: '#f97316',
+                font: 'Comic Sans MS',
+                pattern: 'circles'
+            },
+            nature: {
+                id: 'nature',
+                name: 'טבע ירוק',
+                bg: '#f0fdf4',
+                text: '#14532d',
+                accent: '#16a34a',
+                font: 'Helvetica',
+                pattern: 'leaves'
+            }
+        };
+
+        /*******************************************************
+         * CUSTOM HOOKS
+         *******************************************************/
+
+        // Hook for managing Undo/Redo history
+        const useHistory = (initialState) => {
+            const [index, setIndex] = useState(0);
+            const [history, setHistory] = useState([initialState]);
+
+            const setState = (action) => {
+                const newState = typeof action === 'function' ? action(history[index]) : action;
+                if (JSON.stringify(newState) === JSON.stringify(history[index])) return;
+                
+                const copy = history.slice(0, index + 1);
+                copy.push(newState);
+                setHistory(copy);
+                setIndex(copy.length - 1);
+            };
+
+            const undo = () => index > 0 && setIndex(index - 1);
+            const redo = () => index < history.length - 1 && setIndex(index + 1);
+
+            return [history[index], setState, undo, redo, index > 0, index < history.length - 1];
+        };
+
+        // Hook for Local Storage persistence of API Key
+        const useLocalStorage = (key, initialValue) => {
+            const [storedValue, setStoredValue] = useState(() => {
+                try {
+                    const item = window.localStorage.getItem(key);
+                    return item ? JSON.parse(item) : initialValue;
+                } catch (error) {
+                    return initialValue;
+                }
+            });
+
+            const setValue = (value) => {
+                try {
+                    const valueToStore = value instanceof Function ? value(storedValue) : value;
+                    setStoredValue(valueToStore);
+                    window.localStorage.setItem(key, JSON.stringify(valueToStore));
+                } catch (error) {
+                    console.error(error);
+                }
+            };
+
+            return [storedValue, setValue];
+        };
+
+        /*******************************************************
+         * LOGIC & SERVICES
+         *******************************************************/
+
+        class GeminiService {
+            constructor(apiKey) {
+                this.apiKey = apiKey;
+            }
+
+            async call(prompt, systemInstruction = "") {
+                if (!this.apiKey) throw new Error("חסר מפתח API");
+
+                const payload = {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        temperature: 0.7,
+                        topK: 40,
+                        topP: 0.95,
+                        maxOutputTokens: 8192,
+                    }
+                };
+
+                if (systemInstruction) {
+                    payload.systemInstruction = { parts: [{ text: systemInstruction }] };
+                }
+
+                try {
+                    const response = await fetch(`${API_URL}?key=${this.apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.error?.message || "שגיאה בתקשורת עם השרת");
+                    }
+
+                    const data = await response.json();
+                    return data.candidates[0].content.parts[0].text;
+                } catch (error) {
+                    console.error("Gemini API Error:", error);
+                    throw error;
+                }
+            }
+
+            async generateSlidesFromTopic(topic, slideCount = 6, lang = 'he') {
+                const systemPrompt = `
+                אתה מומחה ליצירת מצגות עסקיות וחינוכיות.
+                תפקידך: ליצור מבנה JSON עבור מצגת בנושא המבוקש.
+                
+                כללים קריטיים:
+                1. התוכן חייב להיות נקי, מקצועי ומכבד. ללא אלימות, דת, פוליטיקה או תכנים לא הולמים.
+                2. פלט JSON בלבד. ללא מרקדאון או טקסט נוסף.
+                3. מבנה ה-JSON חייב להיות מערך של אובייקטים, כל אובייקט מייצג שקף.
+                4. השדות לכל שקף: title (מחרוזת), content (מערך של נקודות - strings), imageKeyword (מילת מפתח באנגלית לחיפוש תמונה), notes (הערות דובר).
+                5. שקף ראשון תמיד שקף פתיחה. שקף אחרון תמיד שקף סיכום.
+                6. השפה: ${lang === 'he' ? 'עברית' : 'אנגלית'}.
+                `;
+
+                const userPrompt = `צור מצגת בנושא: "${topic}". כמות שקפים: ${slideCount}. החזר JSON תקני בלבד.`;
+
+                const rawText = await this.call(userPrompt, systemPrompt);
+                
+                // Clean markdown if exists
+                const jsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                return JSON.parse(jsonStr);
+            }
+
+            async generateQuiz(slidesData) {
+                const context = JSON.stringify(slidesData.map(s => ({ title: s.title, content: s.content })));
+                const prompt = `
+                בהתבסס על תוכן השקפים הבא: ${context}
+                צור שקף חידון אמריקאי (שאלה אחת).
+                החזר JSON במבנה: { "question": "...", "options": ["...", "...", "...", "..."], "correctAnswerIndex": 0 }.
+                `;
+                const rawText = await this.call(prompt);
+                const jsonStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                return JSON.parse(jsonStr);
+            }
+
+            async summarizeText(longText) {
+                const prompt = `סכם את הטקסט הבא לנקודות עיקריות שמתאימות לשקף מצגת (עד 5 נקודות): \n\n${longText}`;
+                return await this.call(prompt);
+            }
+
+            async proofread(text) {
+                const prompt = `תקן שגיאות כתיב ודקדוק ושפר את הניסוח של הטקסט הבא (שמור על המשמעות המקורית): \n\n${text}`;
+                return await this.call(prompt);
+            }
+        }
+
+        /*******************************************************
+         * COMPONENTS
+         *******************************************************/
+
+        // 1. UI PRIMITIVES
+        
+        const Button = ({ onClick, children, variant = 'primary', icon, disabled, className = '' }) => {
+            const baseClass = "flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed";
+            const variants = {
+                primary: "bg-primary hover:bg-blue-600 text-white focus:ring-blue-500",
+                secondary: "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-300",
+                danger: "bg-red-500 hover:bg-red-600 text-white focus:ring-red-500",
+                ghost: "text-gray-600 hover:bg-gray-100",
+                success: "bg-emerald-500 hover:bg-emerald-600 text-white"
+            };
+
+            return (
+                <button 
+                    onClick={onClick} 
+                    disabled={disabled}
+                    className={`${baseClass} ${variants[variant]} ${className}`}
+                >
+                    {icon && <i className={`fas ${icon} ml-2`}></i>}
+                    {children}
+                </button>
+            );
+        };
+
+        const Input = ({ label, value, onChange, placeholder, type = "text", error }) => (
+            <div className="mb-4">
+                {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+                <input
+                    type={type}
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder={placeholder}
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-primary focus:border-primary ${error ? 'border-red-500' : 'border-gray-300'}`}
+                />
+                {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+            </div>
+        );
+
+        const Modal = ({ isOpen, onClose, title, children }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onClick={onClose}></div>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg z-10 overflow-hidden animate-slide-up">
+                        <div className="flex justify-between items-center p-4 border-b">
+                            <h3 className="text-lg font-bold text-gray-800">{title}</h3>
+                            <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto max-h-[80vh]">
+                            {children}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Toast = ({ message, type = 'info', onClose }) => {
+            useEffect(() => {
+                const timer = setTimeout(onClose, 3000);
+                return () => clearTimeout(timer);
+            }, [onClose]);
+
+            const colors = {
+                info: 'bg-blue-500',
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-orange-500'
+            };
+
+            return (
+                <div className={`fixed bottom-4 left-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in z-50`}>
+                    <i className={`fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}`}></i>
+                    <span>{message}</span>
+                </div>
+            );
+        };
+
+        // 2. APP SPECIFIC COMPONENTS
+
+        const SlidePreview = ({ slide, theme, index, isSelected, onClick, onDragStart, onDragOver, onDrop }) => {
+            return (
+                <div 
+                    draggable
+                    onDragStart={(e) => onDragStart(e, index)}
+                    onDragOver={(e) => onDragOver(e)}
+                    onDrop={(e) => onDrop(e, index)}
+                    onClick={onClick}
+                    className={`relative aspect-video bg-white rounded-lg border-2 cursor-pointer transition-all group overflow-hidden ${isSelected ? 'border-primary ring-2 ring-primary ring-offset-2' : 'border-gray-200 hover:border-blue-300'}`}
+                >
+                    {/* Thumbnail View of Slide */}
+                    <div 
+                        className="w-full h-full p-2 overflow-hidden pointer-events-none transform scale-100 origin-top-left"
+                        style={{ backgroundColor: theme.bg, fontFamily: theme.font }}
+                    >
+                        <h4 className="font-bold text-xs truncate mb-1" style={{ color: theme.text }}>{slide.title}</h4>
+                        <div className="flex gap-2 h-[calc(100%-20px)]">
+                            <div className="flex-1 min-w-0">
+                                <ul className="list-disc list-inside text-[8px] space-y-0.5" style={{ color: theme.text }}>
+                                    {slide.content.slice(0, 3).map((line, i) => (
+                                        <li key={i} className="truncate opacity-70">{line}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                            {slide.image && (
+                                <div className="w-1/3 h-full">
+                                    <img src={slide.image} alt="slide" className="w-full h-full object-cover rounded-sm" />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {/* Slide Number Badge */}
+                    <div className="absolute bottom-1 left-2 text-[10px] text-gray-400 bg-white/80 px-1 rounded">
+                        #{index + 1}
+                    </div>
+
+                    {/* Drag Handle Icon on Hover */}
+                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i className="fas fa-grip-vertical text-gray-400"></i>
+                    </div>
+                </div>
+            );
+        };
+
+        const MainPreviewCanvas = ({ slide, theme }) => {
+            if (!slide) return <div className="flex items-center justify-center h-full text-gray-400">בחר שקף להצגה</div>;
+
+            return (
+                <div 
+                    className="w-full aspect-video shadow-2xl rounded-lg overflow-hidden relative flex flex-col p-12 transition-colors duration-300"
+                    style={{ backgroundColor: theme.bg, color: theme.text, fontFamily: theme.font }}
+                >
+                    {/* Background Pattern Mockup */}
+                    {theme.pattern === 'dots' && <div className="absolute inset-0 opacity-5" style={{backgroundImage: 'radial-gradient(currentColor 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>}
+                    {theme.pattern === 'stripes' && <div className="absolute inset-0 opacity-5" style={{backgroundImage: 'repeating-linear-gradient(45deg, currentColor 0, currentColor 1px, transparent 0, transparent 50%)', backgroundSize: '10px 10px'}}></div>}
+                    
+                    <div className="z-10 h-full flex flex-col">
+                        <h1 className="text-4xl font-bold mb-8 border-b-4 pb-4 inline-block w-fit" style={{ borderColor: theme.accent }}>
+                            {slide.title}
+                        </h1>
+
+                        <div className="flex flex-1 gap-8">
+                            <div className="flex-1 flex flex-col justify-center">
+                                <ul className="text-xl space-y-4 list-disc list-inside marker:text-accent">
+                                    {slide.content.map((point, idx) => (
+                                        <li key={idx} className="leading-relaxed">{point}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                            
+                            {slide.image && (
+                                <div className="flex-1 h-full flex items-center justify-center">
+                                    <div className="relative w-full h-64 rounded-xl overflow-hidden shadow-lg border-4" style={{borderColor: theme.accent}}>
+                                        <img src={slide.image} alt={slide.title} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {/* Footer */}
+                    <div className="absolute bottom-4 left-6 text-sm opacity-50">
+                        נוצר באמצעות AI Slide Master
+                    </div>
+                </div>
+            );
+        };
+
+        const Toolbar = ({ onExportPPTX, onExportPDF, onUndo, onRedo, canUndo, canRedo, onThemeChange, currentTheme, onAddSlide }) => {
+            return (
+                <div className="h-16 bg-white border-b flex items-center justify-between px-6 shadow-sm z-20">
+                    <div className="flex items-center gap-2">
+                         <div className="flex bg-gray-100 rounded-lg p-1 gap-1">
+                            <button 
+                                onClick={onUndo} 
+                                disabled={!canUndo}
+                                className={`p-2 rounded hover:bg-white hover:shadow transition ${!canUndo ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                title="ביטול"
+                            >
+                                <i className="fas fa-undo"></i>
+                            </button>
+                            <button 
+                                onClick={onRedo} 
+                                disabled={!canRedo}
+                                className={`p-2 rounded hover:bg-white hover:shadow transition ${!canRedo ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                title="ביצוע שוב"
+                            >
+                                <i className="fas fa-redo"></i>
+                            </button>
+                        </div>
+                        <div className="h-6 w-px bg-gray-300 mx-2"></div>
+                        <Button variant="secondary" onClick={onAddSlide} icon="fa-plus">הוסף שקף</Button>
+                        
+                        <div className="relative group">
+                             <button className="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">
+                                <i className="fas fa-palette text-accent"></i>
+                                <span>עיצוב: {currentTheme.name}</span>
+                             </button>
+                             <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border p-2 hidden group-hover:block z-50">
+                                {Object.values(THEMES).map(t => (
+                                    <button 
+                                        key={t.id}
+                                        onClick={() => onThemeChange(t)}
+                                        className={`w-full text-right px-3 py-2 rounded flex items-center gap-2 hover:bg-gray-50 ${currentTheme.id === t.id ? 'bg-blue-50 text-blue-600' : ''}`}
+                                    >
+                                        <div className="w-4 h-4 rounded-full border" style={{background: t.bg}}></div>
+                                        {t.name}
+                                    </button>
+                                ))}
+                             </div>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <Button variant="secondary" onClick={onExportPDF} icon="fa-file-pdf">PDF</Button>
+                        <Button variant="primary" onClick={onExportPPTX} icon="fa-file-powerpoint">הורד PPTX</Button>
+                    </div>
+                </div>
+            );
+        };
+
+        const SettingsModal = ({ apiKey, setApiKey, onClose }) => {
+            const [key, setKey] = useState(apiKey || '');
+
+            const handleSave = () => {
+                setApiKey(key);
+                onClose();
+            };
+
+            return (
+                <Modal isOpen={true} onClose={onClose} title="הגדרות מערכת">
+                    <div className="space-y-4">
+                        <p className="text-sm text-gray-600">
+                            כדי להשתמש במחולל המצגות, עליך להזין מפתח API של Google Gemini.
+                            המפתח נשמר בדפדפן שלך בלבד ולא נשלח לשום שרת צד ג' (למעט גוגל).
+                        </p>
+                        <Input 
+                            label="Gemini API Key" 
+                            value={key} 
+                            onChange={setKey} 
+                            placeholder="הזן כאן את המפתח..." 
+                            type="password"
+                        />
+                        <div className="bg-blue-50 p-3 rounded text-sm text-blue-800">
+                            <i className="fas fa-info-circle ml-2"></i>
+                            אין לך מפתח? <a href="https://aistudio.google.com/app/apikey" target="_blank" className="underline font-bold">השג אחד כאן בחינם</a>.
+                        </div>
+                        <div className="flex justify-end pt-4">
+                            <Button onClick={handleSave}>שמור והמשך</Button>
+                        </div>
+                    </div>
+                </Modal>
+            );
+        };
+
+        const GeneratorModal = ({ isOpen, onClose, onGenerate }) => {
+            const [prompt, setPrompt] = useState('');
+            const [slidesCount, setSlidesCount] = useState(6);
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [longText, setLongText] = useState(''); // For summarization mode
+            const [mode, setMode] = useState('topic'); // 'topic' or 'summary'
+
+            const handleSubmit = async () => {
+                if ((mode === 'topic' && !prompt) || (mode === 'summary' && !longText)) return;
+                
+                // Safety Check
+                if (!checkContentSafety(prompt) || !checkContentSafety(longText)) {
+                    alert("אופסס... נטפרי לא מרשה לי לדבר איתך על זה, לפרטים נוספים עיינו בקישור הזה צאט AI בנטפרי");
+                    return;
+                }
+
+                setIsGenerating(true);
+                await onGenerate({ mode, prompt, longText, slidesCount });
+                setIsGenerating(false);
+                onClose();
+            };
+
+            if (!isOpen) return null;
+
+            return (
+                <Modal isOpen={isOpen} onClose={onClose} title="יצירת מצגת חדשה">
+                    <div className="space-y-6">
+                        {/* Mode Selection Tabs */}
+                        <div className="flex p-1 bg-gray-100 rounded-lg">
+                            <button 
+                                onClick={() => setMode('topic')} 
+                                className={`flex-1 py-2 rounded-md text-sm font-medium transition ${mode === 'topic' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}
+                            >
+                                <i className="fas fa-lightbulb ml-2"></i> לפי נושא
+                            </button>
+                            <button 
+                                onClick={() => setMode('summary')} 
+                                className={`flex-1 py-2 rounded-md text-sm font-medium transition ${mode === 'summary' ? 'bg-white shadow text-primary' : 'text-gray-500'}`}
+                            >
+                                <i className="fas fa-file-alt ml-2"></i> סיכום טקסט
+                            </button>
+                        </div>
+
+                        {mode === 'topic' ? (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">על מה המצגת?</label>
+                                <textarea 
+                                    className="w-full border rounded-lg p-3 h-24 focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    placeholder="לדוגמה: ההיסטוריה של האינטרנט, שיווק דיגיטלי לעסקים קטנים..."
+                                    value={prompt}
+                                    onChange={(e) => setPrompt(e.target.value)}
+                                ></textarea>
+                            </div>
+                        ) : (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">הדבק את הטקסט לסיכום:</label>
+                                <textarea 
+                                    className="w-full border rounded-lg p-3 h-32 focus:ring-2 focus:ring-primary focus:border-transparent"
+                                    placeholder="הדבק כאן מאמר או מסמך ארוך..."
+                                    value={longText}
+                                    onChange={(e) => setLongText(e.target.value)}
+                                ></textarea>
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">מספר שקפים: {slidesCount}</label>
+                            <input 
+                                type="range" 
+                                min="3" 
+                                max="15" 
+                                value={slidesCount} 
+                                onChange={(e) => setSlidesCount(parseInt(e.target.value))}
+                                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                            />
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>3</span>
+                                <span>15</span>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end pt-4 gap-3 border-t">
+                            <Button variant="secondary" onClick={onClose}>ביטול</Button>
+                            <Button 
+                                onClick={handleSubmit} 
+                                disabled={isGenerating || (mode === 'topic' && !prompt) || (mode === 'summary' && !longText)}
+                                icon={isGenerating ? "fa-spinner fa-spin" : "fa-magic"}
+                            >
+                                {isGenerating ? 'חושב...' : 'צור מצגת'}
+                            </Button>
+                        </div>
+                    </div>
+                </Modal>
+            );
+        };
+
+        const EditorPanel = ({ slide, onChange, onShuffleImage, onProofread }) => {
+            if (!slide) return (
+                <div className="p-8 text-center text-gray-400 bg-white h-full flex flex-col items-center justify-center">
+                    <i className="fas fa-mouse-pointer text-4xl mb-4"></i>
+                    <p>בחר שקף מהרשימה כדי לערוך אותו</p>
+                </div>
+            );
+
+            return (
+                <div className="bg-white border-l h-full flex flex-col w-96 shadow-lg z-10">
+                    <div className="p-4 border-b bg-gray-50">
+                        <h3 className="font-bold text-gray-700">עריכת שקף</h3>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">כותרת</label>
+                            <input 
+                                type="text" 
+                                value={slide.title} 
+                                onChange={(e) => onChange('title', e.target.value)}
+                                className="w-full p-2 border rounded font-bold text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                            />
+                        </div>
+
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">תוכן (נקודות)</label>
+                                <button onClick={onProofread} className="text-xs text-purple-600 hover:text-purple-800" title="תיקון ניסוח עם AI">
+                                    <i className="fas fa-wand-magic-sparkles mr-1"></i> שפר ניסוח
+                                </button>
+                            </div>
+                            <div className="space-y-2">
+                                {slide.content.map((point, idx) => (
+                                    <div key={idx} className="flex gap-2">
+                                        <div className="mt-2 w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0"></div>
+                                        <textarea
+                                            value={point}
+                                            onChange={(e) => {
+                                                const newContent = [...slide.content];
+                                                newContent[idx] = e.target.value;
+                                                onChange('content', newContent);
+                                            }}
+                                            rows="2"
+                                            className="w-full p-2 border rounded text-sm focus:ring-1 focus:ring-primary resize-none"
+                                        />
+                                        <button 
+                                            onClick={() => {
+                                                const newContent = slide.content.filter((_, i) => i !== idx);
+                                                onChange('content', newContent);
+                                            }}
+                                            className="text-gray-400 hover:text-red-500 self-center"
+                                        >
+                                            <i className="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                ))}
+                                <button 
+                                    onClick={() => onChange('content', [...slide.content, "נקודה חדשה"])}
+                                    className="text-sm text-primary hover:underline mt-2 flex items-center gap-1"
+                                >
+                                    <i className="fas fa-plus-circle"></i> הוסף נקודה
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">תמונה</label>
+                                <button onClick={onShuffleImage} className="text-xs text-blue-600 hover:text-blue-800">
+                                    <i className="fas fa-random mr-1"></i> החלף תמונה
+                                </button>
+                            </div>
+                            
+                            {slide.image && (
+                                <div className="relative group rounded-lg overflow-hidden border mb-2">
+                                    <img src={slide.image} className="w-full h-40 object-cover" />
+                                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                                        <button 
+                                            onClick={() => onChange('image', '')}
+                                            className="opacity-0 group-hover:opacity-100 bg-red-500 text-white p-2 rounded-full transform scale-0 group-hover:scale-100 transition-all"
+                                        >
+                                            <i className="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            <input 
+                                type="text" 
+                                value={slide.image || ''} 
+                                onChange={(e) => onChange('image', e.target.value)}
+                                placeholder="כתובת URL לתמונה..."
+                                className="w-full p-2 border rounded text-xs text-gray-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">הערות דובר</label>
+                            <textarea 
+                                value={slide.notes || ''} 
+                                onChange={(e) => onChange('notes', e.target.value)}
+                                className="w-full p-2 border rounded text-sm h-24 bg-yellow-50"
+                                placeholder="הערות אישיות להצגה..."
+                            ></textarea>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        /*******************************************************
+         * MAIN APPLICATION
+         *******************************************************/
+
+        const App = () => {
+            // State
+            const [apiKey, setApiKey] = useLocalStorage('gemini_api_key', '');
+            const [showSettings, setShowSettings] = useState(!apiKey);
+            const [showGenerator, setShowGenerator] = useState(false);
+            const [loading, setLoading] = useState(false);
+            const [loadingMsg, setLoadingMsg] = useState('');
+            const [toast, setToast] = useState(null);
+            
+            const [slides, setSlides, undo, redo, canUndo, canRedo] = useHistory([
+                {
+                    id: 'welcome',
+                    title: 'ברוכים הבאים ל-AI Slide Master',
+                    content: ['לחץ על "צור מצגת" כדי להתחיל', 'או הוסף שקפים ידנית', 'הזן את מפתח ה-API בהגדרות'],
+                    image: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&w=1600&q=80',
+                    imageKeyword: 'presentation',
+                    notes: 'שקף פתיחה'
+                }
+            ]);
+            
+            const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
+            const [currentTheme, setCurrentTheme] = useState(THEMES.modern);
+            
+            // Drag and Drop State
+            const [draggedIndex, setDraggedIndex] = useState(null);
+
+            // Services
+            const gemini = new GeminiService(apiKey);
+
+            // -- HANDLERS --
+
+            const handleGeneratePresentation = async ({ mode, prompt, longText, slidesCount }) => {
+                setLoading(true);
+                try {
+                    let slidesData;
+                    
+                    if (mode === 'topic') {
+                        setLoadingMsg('מתכנן את מבנה המצגת...');
+                        slidesData = await gemini.generateSlidesFromTopic(prompt, slidesCount);
+                    } else {
+                        // Summary mode logic
+                        setLoadingMsg('קורא ומסכם את הטקסט...');
+                        const summary = await gemini.summarizeText(longText);
+                        // Convert simple summary to slides structure manually for simplicity in this demo, 
+                        // or ask AI to format it. Let's ask AI to format it properly.
+                        setLoadingMsg('מארגן את הסיכום לשקפים...');
+                        const structPrompt = `המר את הסיכום הבא ל-JSON של מצגת (כפי שהוגדר קודם): \n${summary}`;
+                        // Re-using the logic inside generateSlidesFromTopic roughly:
+                        slidesData = await gemini.generateSlidesFromTopic(`סיכום הטקסט: ${longText.substring(0, 100)}...`, slidesCount);
+                    }
+
+                    // Enhance slides with images
+                    setLoadingMsg('מחפש תמונות מתאימות...');
+                    const enhancedSlides = slidesData.map(s => ({
+                        ...s,
+                        id: generateId(),
+                        // Using Unsplash Source for dynamic images based on keywords
+                        image: s.imageKeyword ? `https://source.unsplash.com/1600x900/?${encodeURIComponent(s.imageKeyword)}` : null,
+                        // Fallback logic if source.unsplash is deprecated/slow: stick to keyword for now, 
+                        // in real app use Unsplash API directly.
+                        // For this demo, let's try to simulate semantic matching via keywords
+                        image: `https://image.pollinations.ai/prompt/${encodeURIComponent(s.imageKeyword || s.title)}?width=1600&height=900&nologo=true`
+                    }));
+
+                    setSlides(enhancedSlides);
+                    setSelectedSlideIndex(0);
+                    showToast('המצגת נוצרה בהצלחה!', 'success');
+
+                } catch (error) {
+                    console.error(error);
+                    showToast('שגיאה ביצירת המצגת: ' + error.message, 'error');
+                } finally {
+                    setLoading(false);
+                    setLoadingMsg('');
+                }
+            };
+
+            const handleUpdateSlide = (field, value) => {
+                const newSlides = [...slides];
+                newSlides[selectedSlideIndex] = { ...newSlides[selectedSlideIndex], [field]: value };
+                setSlides(newSlides);
+            };
+
+            const handleAddSlide = () => {
+                const newSlide = {
+                    id: generateId(),
+                    title: 'שקף חדש',
+                    content: ['לחץ לעריכת הטקסט'],
+                    image: 'https://image.pollinations.ai/prompt/abstract?width=1600&height=900&nologo=true',
+                    imageKeyword: 'abstract',
+                    notes: ''
+                };
+                const newSlides = [...slides];
+                newSlides.splice(selectedSlideIndex + 1, 0, newSlide);
+                setSlides(newSlides);
+                setSelectedSlideIndex(selectedSlideIndex + 1);
+            };
+
+            const handleDeleteSlide = (index, e) => {
+                e.stopPropagation();
+                if (slides.length <= 1) {
+                    showToast('חייב להישאר לפחות שקף אחד', 'warning');
+                    return;
+                }
+                const newSlides = slides.filter((_, i) => i !== index);
+                setSlides(newSlides);
+                if (selectedSlideIndex >= index && selectedSlideIndex > 0) {
+                    setSelectedSlideIndex(selectedSlideIndex - 1);
+                }
+            };
+
+            const handleProofread = async () => {
+                const slide = slides[selectedSlideIndex];
+                setLoading(true);
+                setLoadingMsg('משפר ניסוח...');
+                try {
+                    // Improve points one by one or all together. All together is faster.
+                    const textBlock = slide.content.join('\n');
+                    const improved = await gemini.proofread(textBlock);
+                    const newContent = improved.split('\n').map(s => s.replace(/^- /, '').trim()).filter(Boolean);
+                    
+                    handleUpdateSlide('content', newContent);
+                    showToast('הניסוח שופר!', 'success');
+                } catch (error) {
+                    showToast('שגיאה בשיפור הניסוח', 'error');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleShuffleImage = async () => {
+                const slide = slides[selectedSlideIndex];
+                const seed = Math.floor(Math.random() * 1000);
+                const newUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(slide.imageKeyword || slide.title)}?width=1600&height=900&nologo=true&seed=${seed}`;
+                handleUpdateSlide('image', newUrl);
+            };
+
+            // Drag & Drop Logic (Simple Array Swap)
+            const onDragStart = (e, index) => {
+                setDraggedIndex(index);
+                e.dataTransfer.effectAllowed = "move";
+                // Invisible drag image or default
+            };
+
+            const onDragOver = (e) => {
+                e.preventDefault(); // Necessary for onDrop to fire
+            };
+
+            const onDrop = (e, dropIndex) => {
+                e.preventDefault();
+                if (draggedIndex === null || draggedIndex === dropIndex) return;
+
+                const newSlides = [...slides];
+                const [draggedItem] = newSlides.splice(draggedIndex, 1);
+                newSlides.splice(dropIndex, 0, draggedItem);
+
+                setSlides(newSlides);
+                setSelectedSlideIndex(dropIndex); // Follow the slide
+                setDraggedIndex(null);
+            };
+
+            // Export Logic
+            const exportPPTX = async () => {
+                setLoading(true);
+                setLoadingMsg('מכין קובץ PPTX...');
+                
+                try {
+                    const pptx = new PptxGenJS();
+                    pptx.layout = 'LAYOUT_16x9';
+                    pptx.rtlMode = true;
+
+                    // Define Master Slide based on Theme
+                    pptx.defineSlideMaster({
+                        title: 'MASTER_SLIDE',
+                        background: { color: currentTheme.bg.replace('#', '') },
+                        objects: [
+                            { rect: { x: 0, y: 0, w: '100%', h: 0.15, fill: { color: currentTheme.accent.replace('#', '') } } }, // Top Bar
+                        ]
+                    });
+
+                    slides.forEach((slide) => {
+                        const s = pptx.addSlide({ masterName: 'MASTER_SLIDE' });
+                        
+                        // Title
+                        s.addText(slide.title, {
+                            x: '5%', y: '10%', w: '90%', h: 1,
+                            fontSize: 32,
+                            bold: true,
+                            color: currentTheme.text.replace('#', ''),
+                            fontFace: currentTheme.font,
+                            align: 'right',
+                            isTextBox: true
+                        });
+
+                        // Content
+                        s.addText(slide.content.map(c => ({ text: c, options: { breakLine: true } })), {
+                            x: '50%', y: '25%', w: '45%', h: '65%',
+                            fontSize: 18,
+                            color: currentTheme.text.replace('#', ''),
+                            bullet: true,
+                            align: 'right',
+                            valign: 'top',
+                            fontFace: currentTheme.font
+                        });
+
+                        // Image
+                        if (slide.image) {
+                            s.addImage({
+                                path: slide.image,
+                                x: '5%', y: '25%', w: '40%', h: 4.5,
+                                sizing: { type: 'contain', w: '40%', h: 4.5 } // Ensure fit
+                            });
+                        }
+
+                        // Notes
+                        if (slide.notes) {
+                            s.addNotes(slide.notes);
+                        }
+                    });
+
+                    await pptx.writeFile({ fileName: `Presentation-${Date.now()}.pptx` });
+                    showToast('הקובץ הורד בהצלחה', 'success');
+                } catch (error) {
+                    console.error(error);
+                    showToast('שגיאה ביצוא הקובץ', 'error');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const exportPDF = () => {
+                // Using browser print for high fidelity PDF
+                window.print();
+            };
+
+            const showToast = (msg, type) => {
+                setToast({ message: msg, type });
+                setTimeout(() => setToast(null), 3000);
+            };
+
+            // -- RENDER --
+
+            return (
+                <div className="flex flex-col h-screen bg-gray-100 overflow-hidden">
+                    
+                    {/* TOP BAR */}
+                    <div className="bg-white shadow-sm border-b px-6 py-3 flex justify-between items-center z-30">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-primary text-white p-2 rounded-lg">
+                                <i className="fas fa-robot text-xl"></i>
+                            </div>
+                            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-l from-blue-600 to-purple-600">
+                                AI Slide Master
+                            </h1>
+                        </div>
+                        <div className="flex gap-4">
+                            <Button onClick={() => setShowGenerator(true)} icon="fa-plus-circle" className="animate-pulse-fast">
+                                מצגת חדשה
+                            </Button>
+                            <button onClick={() => setShowSettings(true)} className="text-gray-500 hover:text-gray-800">
+                                <i className="fas fa-cog text-xl"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* MAIN WORKSPACE */}
+                    <div className="flex flex-1 overflow-hidden">
+                        
+                        {/* LEFT: SLIDE STRIP (RTL layout means this is actually right visually in LTR, but CSS handles it) */}
+                        <div className="w-64 bg-gray-50 border-l flex flex-col h-full z-20">
+                            <div className="p-4 border-b bg-white flex justify-between items-center">
+                                <span className="font-bold text-gray-700">{slides.length} שקפים</span>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                                {slides.map((slide, index) => (
+                                    <div key={slide.id} className="relative group">
+                                        <SlidePreview 
+                                            slide={slide} 
+                                            theme={currentTheme}
+                                            index={index} 
+                                            isSelected={selectedSlideIndex === index}
+                                            onClick={() => setSelectedSlideIndex(index)}
+                                            onDragStart={onDragStart}
+                                            onDragOver={onDragOver}
+                                            onDrop={onDrop}
+                                        />
+                                        <button 
+                                            onClick={(e) => handleDeleteSlide(index, e)}
+                                            className="absolute -top-2 -left-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10"
+                                            title="מחק שקף"
+                                        >
+                                            <i className="fas fa-times text-xs"></i>
+                                        </button>
+                                    </div>
+                                ))}
+                                <button 
+                                    onClick={handleAddSlide}
+                                    className="w-full py-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-primary hover:text-primary transition-colors flex flex-col items-center gap-2"
+                                >
+                                    <i className="fas fa-plus"></i>
+                                    <span className="text-sm">הוסף שקף</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* CENTER: CANVAS & TOOLBAR */}
+                        <div className="flex-1 flex flex-col bg-slate-100 relative min-w-0">
+                            <Toolbar 
+                                onExportPPTX={exportPPTX} 
+                                onExportPDF={exportPDF}
+                                onUndo={undo} 
+                                onRedo={redo} 
+                                canUndo={canUndo} 
+                                canRedo={canRedo}
+                                onThemeChange={setCurrentTheme}
+                                currentTheme={currentTheme}
+                                onAddSlide={handleAddSlide}
+                            />
+                            
+                            <div className="flex-1 p-8 overflow-auto flex items-center justify-center">
+                                <div className="w-full max-w-5xl aspect-video shadow-2xl rounded-xl bg-white transform transition-all">
+                                    <MainPreviewCanvas 
+                                        slide={slides[selectedSlideIndex]} 
+                                        theme={currentTheme} 
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* RIGHT: EDITOR PANEL */}
+                        <EditorPanel 
+                            slide={slides[selectedSlideIndex]} 
+                            onChange={handleUpdateSlide}
+                            onShuffleImage={handleShuffleImage}
+                            onProofread={handleProofread}
+                        />
+                    </div>
+
+                    {/* MODALS & OVERLAYS */}
+                    {showSettings && (
+                        <SettingsModal 
+                            apiKey={apiKey} 
+                            setApiKey={setApiKey} 
+                            onClose={() => setShowSettings(false)} 
+                        />
+                    )}
+
+                    <GeneratorModal 
+                        isOpen={showGenerator} 
+                        onClose={() => setShowGenerator(false)} 
+                        onGenerate={handleGeneratePresentation}
+                    />
+
+                    {loading && (
+                        <div className="fixed inset-0 z-[100] loader-overlay flex flex-col items-center justify-center">
+                            <div className="relative">
+                                <div className="w-16 h-16 border-4 border-blue-200 border-t-primary rounded-full animate-spin"></div>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <i className="fas fa-robot text-primary text-xl"></i>
+                                </div>
+                            </div>
+                            <h2 className="mt-4 text-xl font-bold text-gray-800">{loadingMsg}</h2>
+                            <p className="text-gray-500 mt-2">ה-AI עובד על זה...</p>
+                        </div>
+                    )}
+
+                    {toast && (
+                        <Toast 
+                            message={toast.message} 
+                            type={toast.type} 
+                            onClose={() => setToast(null)} 
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+    </script>
+
+    <!-- CSS Print Media Query for PDF Export trick -->
+    <style media="print">
+        @page {
+            size: landscape;
+            margin: 0;
+        }
+        body {
+            background: white;
+            -webkit-print-color-adjust: exact;
+        }
+        /* Hide everything except the main canvas */
+        body > div {
+            display: none !important;
+        }
+        /* We'll use a specific printable area class if needed, or simply iterate elements. 
+           For this SPA, standard print might capture the UI. 
+           Ideally, we'd render a clean printable view. 
+           For simplicity in this 1-file solution, we hide UI elements. */
+        
+        .bg-slate-50, .border-b, .border-l, .shadow-sm, button, .w-64, .w-96 {
+            display: none !important;
+        }
+        /* Show only the slide canvas and make it full page */
+        #root {
+            display: block !important;
+        }
+    </style>
+</body>
+</html>
