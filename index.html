@@ -1129,7 +1129,7 @@
                     'Source Sans Pro', 'Raleway', 'PT Sans', 'Merriweather',
                     'Ubuntu', 'Playfair Display', 'Poppins', 'Nunito', 'Cabin',
                     // Added fonts from updates
-                    'Miriam Libre', 'Suez One'
+                    'Miriam Libre', 'Suez One', 'Bellefair', 'Arimo', 'Noto Serif Hebrew', 'Tinos', 'Arimo Hebrew', 'Cousine', 'Karantina'
                 ];
                 
                 this.colorSchemes = [
@@ -1158,7 +1158,7 @@
                     { name: 'Monochrome', colors: ['#000000', '#404040', '#808080', '#c0c0c0', '#ffffff'] },
                     { name: 'Pastel', colors: ['#fef3c7', '#fde68a', '#fcd34d', '#fbbf24', '#f59e0b'] },
                     { name: 'Vibrant', colors: ['#dc2626', '#ea580c', '#f59e0b', '#84cc16', '#10b981'] },
-                    // הוספת ערכות צבעים נוספות
+                    // הוספת ערכות צבעים נוספים
                     { name: 'Midnight', colors: ['#0f172a', '#1e293b', '#334155', '#475569', '#64748b'] },
                     { name: 'Peach', colors: ['#fed7aa', '#fdba74', '#fb923c', '#f97316', '#ea580c'] },
                     { name: 'Lavender', colors: ['#f3e8ff', '#e9d5ff', '#d8b4fe', '#c084fc', '#a855f7'] },
@@ -1180,7 +1180,7 @@
                     { id: 'zigzag', style: 'linear-gradient(135deg, rgba(0,0,0,0.05) 25%, transparent 25%), linear-gradient(225deg, rgba(0,0,0,0.05) 25%, transparent 25%)', size: '20px 20px' },
                     { id: 'cross', style: 'linear-gradient(rgba(0,0,0,0.1) 2px, transparent 2px), linear-gradient(90deg, rgba(0,0,0,0.1) 2px, transparent 2px)', size: '30px 30px' },
                     { id: 'hexagon', style: 'radial-gradient(circle at 50% 50%, rgba(0,0,0,0.05) 30%, transparent 31%)', size: '40px 40px' },
-                    { id: 'triangles', style: 'linear-gradient(45deg, rgba(0,0,0,0.05) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.05) 75%)', size: '30px 30px' },
+                    { id: 'triangles', style: 'linear-gradient(45deg, rgba(0,0,0,0.05) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.05) 75%), size: '30px 30px' },
                     { id: 'circles', style: 'radial-gradient(circle, rgba(0,0,0,0.05) 10%, transparent 11%)', size: '40px 40px' },
                     { id: 'stripes-v', style: 'linear-gradient(90deg, transparent 50%, rgba(0,0,0,0.05) 50%)', size: '20px 20px' },
                     { id: 'stripes-h', style: 'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.05) 50%)', size: '20px 20px' },
@@ -1633,7 +1633,9 @@
             }
             
             getRandomTransition() {
-                return this.transitions[Math.floor(Math.random() * this.transitions.length)];
+                // Ensure only valid transitions are returned
+                const validTransitions = this.transitions.filter(t => t.css && t.css !== 'transform'); // Exclude pure transform for now if causing issues
+                return validTransitions[Math.floor(Math.random() * validTransitions.length)];
             }
 
             getRandomAnimation() {
@@ -2014,7 +2016,7 @@ ${currentSlides}
                 let selectedGradient = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
                 
                 for (const [keyword, gradient] of Object.entries(gradients)) {
-                    if (description.includes(keyword)) {
+                    if (description.toLowerCase().includes(keyword.toLowerCase())) {
                         selectedGradient = gradient;
                         break;
                     }
@@ -2093,6 +2095,96 @@ ${currentSlides}
                     app.ui.showToast('שגיאה ביצירת התמונה: ' + error.message, 'error');
                 }
             }
+
+            async generateFullPresentation(prompt) {
+                const systemInstructions = `אתה עוזר AI מומחה בעיצוב מצגות מקצועיות ויפות.
+            צור מצגת מדהימה ומעוצבת על פי הבקשה: ${prompt}
+
+            אתה יכול להשתמש באפשרויות הבאות:
+            - גופנים: Heebo, Rubik, Alef, Miriam Libre, Assistant, Frank Ruhl Libre, Varela Round, Amatic SC, Secular One, Suez One, Bellefair, Arimo, Noto Sans Hebrew, Open Sans Hebrew, David Libre, Karantina, Noto Serif Hebrew, Tinos, Arimo Hebrew, Cousine
+            - צבעים: כל צבע HEX שתרצה
+            - תבניות רקע: dots, grid, diagonal, waves, circles, hexagons, triangles, zigzag, stripes, checkerboard, gradientDots, spirals, stars, crosshatch, bricks, honeycomb, arrows, diamonds, scales, confetti, bubbles, mountains, clouds, sun, moon, lightning, heart, flower, leaf, tree, water, fire, snow, rain, wind, none
+            - פריסות: standard (כותרת למעלה, תוכן באמצע), centered (כל הטקסט במרכז), split (חצי טקסט חצי תמונה)
+            - מעברים בין שקפים: fade, slide, zoom, flip, rotate, cube, swipe, dissolve, push, cover, uncover, wipe, split, box, diamond, wheel, plus, wedge, convex, concave, fracture, crush, peel, reveal, expand, contract, origami, ripple, morph, glitch, pixelate, blur, flash, bounce, elastic, pulse, wave, spiral, explode, implode, shatter, assemble, disassemble
+
+            השתמש בעיצוב יצירתי, צבעוני ומגוון. כל שקף צריך להיות שונה ומעניין.
+
+            החזר מצגת בפורמט JSON הבא (רק JSON, ללא טקסט נוסף):
+            {
+              "slides": [
+                {
+                  "title": "כותרת השקף",
+                  "content": "תוכן השקף\\n- נקודה 1\\n- נקודה 2\\n- נקודה 3",
+                  "layout": "standard",
+                  "style": {
+                    "backgroundColor": "#667eea",
+                    "textColor": "#ffffff",
+                    "accentColor": "#f093fb",
+                    "font": "Heebo",
+                    "pattern": "dots",
+                    "titleSize": "48px",
+                    "contentSize": "24px"
+                  },
+                  "transition": "fade",
+                  "imagePrompt": "תיאור תמונה (אופציונלי)"
+                }
+              ]
+            }`;
+
+                try {
+                    const response = await this.callGemini('', systemInstructions);
+                    
+                    const jsonMatch = response.match(/\{[\s\S]*\}/);
+                    if (!jsonMatch) {
+                        throw new Error('לא התקבלה תגובה תקינה מה-AI');
+                    }
+                    
+                    const presentationData = JSON.parse(jsonMatch[0]);
+                    
+                    // ניקוי שקפים קיימים
+                    app.slides.slides = [];
+                    
+                    // יצירת השקפים החדשים
+                    for (let i = 0; i < presentationData.slides.length; i++) {
+                        const slideData = presentationData.slides[i];
+                        const slide = app.slides.createSlide(slideData.layout || 'standard');
+                        
+                        slide.title = slideData.title || '';
+                        slide.content = slideData.content || '';
+                        
+                        if (slideData.style) {
+                            slide.style = {
+                                ...slide.style,
+                                ...slideData.style
+                            };
+                        }
+                        
+                        if (slideData.transition) {
+                            slide.transition = slideData.transition;
+                        }
+                        
+                        // יצירת גרדיאנט לתמונה
+                        if (slideData.imagePrompt) {
+                            slide.image = await this.generateImage(slideData.imagePrompt);
+                        }
+                        
+                        app.slides.slides.push(slide);
+                    }
+                    
+                    app.slides.currentSlideIndex = 0;
+                    app.slides.renderSlides();
+                    
+                    // שמירה אוטומטית בהיסטוריה
+                    app.settings.savePresentationToHistory(
+                        presentationData.slides[0]?.title || 'מצגת ללא שם',
+                        app.slides.slides
+                    );
+                    
+                } catch (error) {
+                    console.error('[v0] Error in generateFullPresentation:', error);
+                    throw error;
+                }
+            }
         }
 
         // ========================================
@@ -2146,18 +2238,17 @@ ${currentSlides}
                 }
             }
             
-            savePresentationToHistory(presentation = null) {
-                // אם presentation הוא null, השתמש במצגת הנוכחית
-                const slidesToSave = presentation ? presentation.slides : app.slides.slides;
-                const titleToSave = presentation ? presentation.title : (app.slides.slides[0]?.title || 'מצגת ללא כותרת');
+            savePresentationToHistory(title = 'מצגת ללא שם', slides = null) {
+                // אם slides הוא null, השתמש במצגת הנוכחית
+                const slidesToSave = slides ? slides : app.slides.slides;
                 
                 if (slidesToSave.length === 0) return; // אל תשמור מצגת ריקה
 
                 this.presentations.unshift({
                     id: Date.now(),
-                    title: titleToSave,
+                    title: title,
                     slides: JSON.parse(JSON.stringify(slidesToSave)), // העתקה עמוקה
-                    createdAt: presentation ? presentation.createdAt.toISOString() : new Date().toISOString()
+                    createdAt: new Date().toISOString()
                 });
                 
                 // שמירת עד 20 מצגות אחרונות
@@ -2862,7 +2953,7 @@ ${currentSlides}
                 const randomDesign = app.advancedDesign.getFullRandomDesign();
                 
                 return {
-                    id: Date.now() + Math.random(),
+                    id: Date.now() + Math.random(), // Ensure unique ID
                     title: '',
                     content: '',
                     image: null,
@@ -2875,7 +2966,8 @@ ${currentSlides}
                         pattern: randomDesign.pattern.id,
                         titleSize: '42px',
                         contentSize: '20px'
-                    }
+                    },
+                    transition: 'fade' // Default transition
                 };
             }
 
@@ -2888,25 +2980,18 @@ ${currentSlides}
                         id: Date.now() + Math.random(), // Ensure unique ID
                         title: slideData.title || '',
                         content: slideData.content || '',
-                        image: slideData.imageUrl || null, // Assuming imageUrl for gradient
-                        layout: slideData.style?.layout || 'standard',
+                        image: slideData.image || null, // Use image property directly
+                        layout: slideData.layout || 'standard',
                         style: {
-                            fontFamily: slideData.style?.fontFamily || 'Heebo',
-                            fontSize: slideData.style?.fontSize || { title: 48, content: 24 },
-                            colors: slideData.style?.colors || { primary: '#667eea', secondary: '#764ba2', text: '#333', background: '#ffffff' },
-                            backgroundPattern: slideData.style?.backgroundPattern || 'minimal',
-                            textStyle: slideData.style?.textStyle || 'bold',
-                            animations: slideData.style?.animations || { entrance: 'fadeIn', emphasis: 'pulse', exit: 'fadeOut' },
-                            transition: slideData.style?.transition || 'fade',
-                            // Map old style properties to new ones if necessary
-                            backgroundColor: slideData.style?.backgroundColor || slideData.style?.colors?.background || '#ffffff',
-                            textColor: slideData.style?.textColor || slideData.style?.colors?.text || '#333',
-                            accentColor: slideData.style?.accentColor || slideData.style?.colors?.primary || '#667eea',
-                            font: slideData.style?.font || slideData.style?.fontFamily || 'Heebo',
-                            pattern: slideData.style?.pattern || slideData.style?.backgroundPattern || 'none',
-                            titleSize: typeof slideData.style?.titleSize === 'number' ? `${slideData.style.titleSize}px` : (slideData.style?.fontSize?.title ? `${slideData.style.fontSize.title}px` : '42px'),
-                            contentSize: typeof slideData.style?.contentSize === 'number' ? `${slideData.style.contentSize}px` : (slideData.style?.fontSize?.content ? `${slideData.style.fontSize.content}px` : '20px'),
-                        }
+                            backgroundColor: slideData.style?.backgroundColor || '#ffffff',
+                            textColor: slideData.style?.textColor || '#333',
+                            accentColor: slideData.style?.accentColor || '#667eea',
+                            font: slideData.style?.font || 'Heebo',
+                            pattern: slideData.style?.pattern || 'none',
+                            titleSize: slideData.style?.titleSize || '42px',
+                            contentSize: slideData.style?.contentSize || '20px',
+                        },
+                        transition: slideData.transition || 'fade'
                     };
                 } else {
                     // Create a new blank slide
@@ -2919,7 +3004,7 @@ ${currentSlides}
                 app.ui.showToast('שקף חדש נוסף!', 'success');
             }
 
-            deleteSlide(index) {
+            deleteSlide(index = this.currentSlideIndex) {
                 if (this.slides.length === 0) return;
                 
                 if (confirm('האם למחוק שקף זה?')) {
@@ -2928,6 +3013,10 @@ ${currentSlides}
                     
                     if (this.currentSlideIndex >= this.slides.length) {
                         this.currentSlideIndex = this.slides.length - 1;
+                    }
+                    // If it was the last slide and it's deleted, reset to no slide selected
+                    if (this.slides.length === 0) {
+                        this.currentSlideIndex = -1;
                     }
                     
                     this.renderSlides();
@@ -3119,7 +3208,7 @@ ${currentSlides}
                         line = line.trim();
                         if (!line) return '';
                         
-                        if (line.startsWith('- ') || line.startsWith('• ')) {
+                        if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ') || line.startsWith('+ ')) { // Added more bullet types
                             return `<div class="flex items-start gap-3 mb-3">
                                 <i class="fas fa-check-circle mt-1" style="color: currentColor; opacity: 0.8;"></i>
                                 <span>${line.substring(2)}</span>
@@ -3143,7 +3232,10 @@ ${currentSlides}
                 const slide = this.slides[this.currentSlideIndex];
 
                 container.innerHTML = `
-                    <div class="space-y-4">
+                    <div class="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto p-4">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">עריכת שקף</h3>
+                        
+                        <!-- כותרת -->
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">כותרת</label>
                             <input type="text" 
@@ -3153,6 +3245,7 @@ ${currentSlides}
                                    placeholder="הזן כותרת...">
                         </div>
                         
+                        <!-- תוכן -->
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">תוכן</label>
                             <textarea onchange="app.slides.updateSlide('content', this.value)"
@@ -3160,24 +3253,47 @@ ${currentSlides}
                                       placeholder="הזן תוכן...">${slide.content || ''}</textarea>
                         </div>
                         
+                        <!-- פריסה -->
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">צבע רקע</label>
-                            <input type="color" 
-                                   value="${slide.style?.backgroundColor || '#6366f1'}" 
-                                   onchange="app.slides.updateSlideStyle('backgroundColor', this.value)"
-                                   class="w-full h-12 rounded-xl cursor-pointer">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">פריסה</label>
+                            <select onchange="app.slides.updateSlide('layout', this.value)"
+                                    class="w-full border-2 border-gray-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-purple-400">
+                                <option value="standard" ${slide.layout === 'standard' ? 'selected' : ''}>רגיל (כותרת + תוכן)</option>
+                                <option value="centered" ${slide.layout === 'centered' ? 'selected' : ''}>מרוכז</option>
+                                <option value="split" ${slide.layout === 'split' ? 'selected' : ''}>מפוצל (טקסט + תמונה)</option>
+                            </select>
                         </div>
                         
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">צבע טקסט</label>
-                            <input type="color" 
-                                   value="${slide.style?.textColor || '#ffffff'}" 
-                                   onchange="app.slides.updateSlideStyle('textColor', this.value)"
-                                   class="w-full h-12 rounded-xl cursor-pointer">
+                        <!-- צבעים -->
+                        <div class="grid grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">רקע</label>
+                                <input type="color" 
+                                       value="${slide.style?.backgroundColor || '#6366f1'}" 
+                                       onchange="app.slides.updateSlideStyle('backgroundColor', this.value)"
+                                       class="w-full h-10 rounded-lg cursor-pointer">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">טקסט</label>
+                                <input type="color" 
+                                       value="${slide.style?.textColor || '#ffffff'}" 
+                                       onchange="app.slides.updateSlideStyle('textColor', this.value)"
+                                       class="w-full h-10 rounded-lg cursor-pointer">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">הדגשה</label>
+                                <input type="color" 
+                                       value="${slide.style?.accentColor || '#f093fb'}" 
+                                       onchange="app.slides.updateSlideStyle('accentColor', this.value)"
+                                       class="w-full h-10 rounded-lg cursor-pointer">
+                            </div>
                         </div>
                         
+                        <!-- גופן -->
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">פונט</label>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">גופן</label>
                             <select onchange="app.slides.updateSlideStyle('font', this.value)"
                                     class="w-full border-2 border-gray-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-purple-400">
                                 ${app.advancedDesign.fonts.map(font => `
@@ -3186,14 +3302,59 @@ ${currentSlides}
                             </select>
                         </div>
                         
+                        <!-- תבנית רקע -->
                         <div>
                             <label class="block text-sm font-semibold text-gray-700 mb-2">תבנית רקע</label>
                             <select onchange="app.slides.updateSlideStyle('pattern', this.value)"
-                                    class="w-full border-2 border-gray-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-purple-400">
+                                    class="w-full border-2 border-gray-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-purple-400 max-h-40 overflow-y-auto">
                                 ${app.advancedDesign.backgroundPatterns.map(pattern => `
                                     <option value="${pattern.id}" ${slide.style?.pattern === pattern.id ? 'selected' : ''}>${pattern.id}</option>
                                 `).join('')}
                             </select>
+                        </div>
+                        
+                        <!-- מעבר -->
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">מעבר לשקף הבא</label>
+                            <select onchange="app.slides.updateSlide('transition', this.value)"
+                                    class="w-full border-2 border-gray-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-purple-400 max-h-40 overflow-y-auto">
+                                ${app.advancedDesign.transitions.map(trans => `
+                                    <option value="${trans.id}" ${slide.transition === trans.id ? 'selected' : ''}>${trans.name}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        
+                        <!-- גדלי טקסט -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">גודל כותרת</label>
+                                <input type="range" min="24" max="72" value="${parseInt(slide.style?.titleSize) || 42}" 
+                                       oninput="this.nextElementSibling.textContent = this.value + 'px';"
+                                       onchange="app.slides.updateSlideStyle('titleSize', this.value + 'px')"
+                                       class="w-full">
+                                <span class="text-xs text-gray-500">${parseInt(slide.style?.titleSize) || 42}px</span>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">גודל תוכן</label>
+                                <input type="range" min="12" max="36" value="${parseInt(slide.style?.contentSize) || 20}" 
+                                       oninput="this.nextElementSibling.textContent = this.value + 'px';"
+                                       onchange="app.slides.updateSlideStyle('contentSize', this.value + 'px')"
+                                       class="w-full">
+                                <span class="text-xs text-gray-500">${parseInt(slide.style?.contentSize) || 20}px</span>
+                            </div>
+                        </div>
+                        
+                        <!-- כפתורי פעולה -->
+                        <div class="grid grid-cols-2 gap-2 pt-4">
+                            <button onclick="app.slides.duplicateSlide()" 
+                                    class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition text-sm">
+                                <i class="fas fa-copy ml-1"></i> שכפל שקף
+                            </button>
+                            <button onclick="app.slides.deleteSlide()" 
+                                    class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm">
+                                <i class="fas fa-trash ml-1"></i> מחק שקף
+                            </button>
                         </div>
                     </div>
                 `;
@@ -3237,6 +3398,15 @@ ${currentSlides}
             }
 
             saveState() {
+                // Avoid saving identical states consecutively
+                if (this.undoStack.length > 0) {
+                    const lastState = this.undoStack[this.undoStack.length - 1];
+                    const currentState = JSON.stringify(app.slides.slides);
+                    if (lastState === currentState) {
+                        return;
+                    }
+                }
+                
                 const state = JSON.stringify(app.slides.slides);
                 this.undoStack.push(state);
                 
@@ -3244,7 +3414,7 @@ ${currentSlides}
                     this.undoStack.shift();
                 }
                 
-                this.redoStack = [];
+                this.redoStack = []; // Clear redo stack on new action
                 app.ui.updateHistoryButtons();
             }
 
