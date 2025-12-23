@@ -1517,7 +1517,7 @@ ${currentSlides}
                     console.log('[v0] Creating slides...');
                     // יצירת השקפים
                     let imageCount = 0;
-                    const maxImages = 3; // מגבלה של 3 תמונות
+                    const maxImages = 2; // מגבלה מופחתת ל-2 תמונות
                     
                     for (const slideData of presentationData.slides) {
                         const slide = app.slides.createSlide(slideData.layout || 'standard');
@@ -1535,9 +1535,11 @@ ${currentSlides}
                                 const imageUrl = await this.generateImage(slideData.imagePrompt);
                                 slide.image = imageUrl;
                                 imageCount++;
+                                console.log(`[v0] Image ${imageCount} generated successfully`);
                             } catch (error) {
-                                console.error('[v0] Error generating image:', error);
-                                // אם יש שגיאה, פשוט אל תוסיף תמונה
+                                console.error(`[v0] Error generating image: ${error.message}`);
+                                console.log('[v0] Continuing without image...');
+                                // אם יש שגיאה, פשוט ממשיכים בלי תמונה
                             }
                         }
                         
@@ -1547,10 +1549,9 @@ ${currentSlides}
                     console.log('[v0] Rendering slides...');
                     app.slides.renderSlides();
                     
-                    // שמירת המצגת בהיסטוריה
                     app.settings.savePresentationToHistory({
                         title: presentationData.slides[0]?.title || 'מצגת ללא כותרת',
-                        slides: app.slides.slides,
+                        slides: JSON.parse(JSON.stringify(app.slides.slides)), // העתקה עמוקה
                         createdAt: new Date()
                     });
                     
@@ -1564,22 +1565,29 @@ ${currentSlides}
             
             async generateImage(prompt) {
                 try {
-                    // שימוש ב-Pollinations AI ליצירת תמונה
-                    // הפרמטר nologo=true מסיר לוגו
-                    // enhance=true משפר את האיכות
                     const cleanPrompt = encodeURIComponent(prompt + ', no text, no words, no letters, clean visual');
                     const imageUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?width=1200&height=800&nologo=true&enhance=true&model=flux&seed=${Date.now()}`;
                     
-                    // בדיקה שהתמונה נטענת
                     return new Promise((resolve, reject) => {
                         const img = new Image();
+                        const timeout = setTimeout(() => {
+                            img.src = '';
+                            reject(new Error('Image loading timeout'));
+                        }, 10000); // 10 שניות timeout
+                        
                         img.crossOrigin = 'anonymous';
-                        img.onload = () => resolve(imageUrl);
-                        img.onerror = () => reject(new Error('Failed to load image'));
+                        img.onload = () => {
+                            clearTimeout(timeout);
+                            resolve(imageUrl);
+                        };
+                        img.onerror = () => {
+                            clearTimeout(timeout);
+                            reject(new Error('Failed to load image'));
+                        };
                         img.src = imageUrl;
                     });
                 } catch (error) {
-                    console.error('שגיאה ביצירת תמונה:', error);
+                    console.error('[v0] Error generating image:', error);
                     throw error;
                 }
             }
@@ -1966,7 +1974,7 @@ ${currentSlides}
             applyTemplate(templateId) {
                 const template = app.templates.getTemplateById(templateId);
                 if (!template) return;
-                
+
                 if (app.slides.currentSlideIndex === -1) {
                     this.showToast('בחר שקף להחלת תבנית', 'error');
                     return;
@@ -2736,7 +2744,7 @@ ${currentSlides}
             if (!hasApiKey) {
                 // אם אין מפתח API - פתיחת ההגדרות אוטומטית
                 setTimeout(() => {
-                    app.ui.showSettings();
+                    app.ui.toggleSettings();
                     app.ui.showToast('נא להזין מפתח API של Gemini כדי להתחיל', 'info');
                 }, 500);
             } else {
@@ -2768,7 +2776,7 @@ ${currentSlides}
             // Ctrl+S / Cmd+S - Save Version
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
-                app.history.saveVersion();
+                app.history.saveState(); // Changed to saveState() as saveVersion() is not defined
             }
             
             // Ctrl+E / Cmd+E - Export
