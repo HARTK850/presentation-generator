@@ -1686,31 +1686,415 @@ ${currentSlides}
             
             async generateImage(prompt) {
                 try {
-                    const cleanPrompt = encodeURIComponent(prompt + ', no text, no words, clean professional visual');
-                    const imageUrl = `https://image.pollinations.ai/prompt/${cleanPrompt}?width=1200&height=800&nologo=true&enhance=true&model=flux&seed=${Date.now()}`;
-                    
-                    return new Promise((resolve, reject) => {
-                        const img = new Image();
-                        const timeout = setTimeout(() => {
-                            img.src = '';
-                            reject(new Error('Image loading timeout'));
-                        }, 10000); // 10 שניות timeout
-                        
-                        img.crossOrigin = 'anonymous';
-                        img.onload = () => {
-                            clearTimeout(timeout);
-                            resolve(imageUrl);
-                        };
-                        img.onerror = () => {
-                            clearTimeout(timeout);
-                            reject(new Error('Failed to load image'));
-                        };
-                        img.src = imageUrl;
-                    });
+                    // במקום להשתמש ב-API חיצוני, ניצור תמונה מקומית עם Canvas
+                    return this.generateLocalImage(prompt);
                 } catch (error) {
-                    console.error('[v0] Error generating image:', error);
+                    console.error('[v0] Error generating local image:', error);
                     throw error;
                 }
+            }
+
+            generateLocalImage(prompt) {
+                // יצירת canvas לתמונה
+                const canvas = document.createElement('canvas');
+                canvas.width = 1200;
+                canvas.height = 800;
+                const ctx = canvas.getContext('2d');
+                
+                // בחירת סגנון על פי המילים בפרומפט
+                const style = this.analyzePromptForStyle(prompt);
+                
+                // ציור הרקע
+                this.drawStyledBackground(ctx, canvas, style);
+                
+                // המרה ל-data URL
+                return canvas.toDataURL('image/png');
+            }
+
+            analyzePromptForStyle(prompt) {
+                const lowerPrompt = prompt.toLowerCase();
+                
+                // זיהוי מילות מפתח ובחירת ערכת צבעים מתאימה
+                const styles = {
+                    nature: {
+                        colors: ['#2ecc71', '#27ae60', '#3498db', '#16a085'],
+                        pattern: 'organic',
+                        keywords: ['nature', 'tree', 'forest', 'mountain', 'landscape', 'טבע', 'עץ', 'יער', 'הר', 'נוף']
+                    },
+                    technology: {
+                        colors: ['#3498db', '#2980b9', '#9b59b6', '#8e44ad'],
+                        pattern: 'geometric',
+                        keywords: ['tech', 'computer', 'digital', 'ai', 'robot', 'future', 'טכנולוגיה', 'מחשב', 'דיגיטלי', 'רובוט']
+                    },
+                    business: {
+                        colors: ['#2c3e50', '#34495e', '#7f8c8d', '#95a5a6'],
+                        pattern: 'professional',
+                        keywords: ['business', 'office', 'professional', 'corporate', 'עסקי', 'משרד', 'מקצועי']
+                    },
+                    creative: {
+                        colors: ['#e74c3c', '#e67e22', '#f39c12', '#f1c40f'],
+                        pattern: 'artistic',
+                        keywords: ['art', 'creative', 'design', 'colorful', 'אמנות', 'יצירתי', 'עיצוב', 'צבעוני']
+                    },
+                    ocean: {
+                        colors: ['#3498db', '#2980b9', '#1abc9c', '#16a085'],
+                        pattern: 'waves',
+                        keywords: ['ocean', 'sea', 'water', 'beach', 'wave', 'ים', 'מים', 'חוף', 'גל']
+                    },
+                    sunset: {
+                        colors: ['#e74c3c', '#e67e22', '#f39c12', '#f1c40f'],
+                        pattern: 'gradient',
+                        keywords: ['sunset', 'sunrise', 'evening', 'dawn', 'שקיעה', 'זריחה', 'ערב']
+                    },
+                    space: {
+                        colors: ['#2c3e50', '#34495e', '#9b59b6', '#3498db'],
+                        pattern: 'cosmic',
+                        keywords: ['space', 'galaxy', 'star', 'planet', 'universe', 'חלל', 'גלקסיה', 'כוכב', 'כוכב לכת']
+                    },
+                    health: {
+                        colors: ['#1abc9c', '#16a085', '#2ecc71', '#27ae60'],
+                        pattern: 'clean',
+                        keywords: ['health', 'medical', 'wellness', 'hospital', 'doctor', 'בריאות', 'רפואי', 'בית חולים', 'רופא']
+                    },
+                    education: {
+                        colors: ['#3498db', '#2980b9', '#e74c3c', '#f39c12'],
+                        pattern: 'structured',
+                        keywords: ['education', 'school', 'learning', 'student', 'teacher', 'חינוך', 'בית ספר', 'למידה', 'תלמיד', 'מורה']
+                    },
+                    food: {
+                        colors: ['#e74c3c', '#e67e22', '#27ae60', '#f39c12'],
+                        pattern: 'appetizing',
+                        keywords: ['food', 'cooking', 'restaurant', 'meal', 'dish', 'אוכל', 'בישול', 'מסעדה', 'ארוחה']
+                    }
+                };
+                
+                // חיפוש התאמה
+                for (const [styleName, styleData] of Object.entries(styles)) {
+                    for (const keyword of styleData.keywords) {
+                        if (lowerPrompt.includes(keyword)) {
+                            return styleData;
+                        }
+                    }
+                }
+                
+                // ברירת מחדל - סגנון מודרני
+                return {
+                    colors: ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b'],
+                    pattern: 'modern'
+                };
+            }
+
+            drawStyledBackground(ctx, canvas, style) {
+                const { colors, pattern } = style;
+                
+                switch (pattern) {
+                    case 'organic':
+                        this.drawOrganicPattern(ctx, canvas, colors);
+                        break;
+                    case 'geometric':
+                        this.drawGeometricPattern(ctx, canvas, colors);
+                        break;
+                    case 'professional':
+                        this.drawProfessionalPattern(ctx, canvas, colors);
+                        break;
+                    case 'artistic':
+                        this.drawArtisticPattern(ctx, canvas, colors);
+                        break;
+                    case 'waves':
+                        this.drawWavesPattern(ctx, canvas, colors);
+                        break;
+                    case 'gradient':
+                        this.drawGradientPattern(ctx, canvas, colors);
+                        break;
+                    case 'cosmic':
+                        this.drawCosmicPattern(ctx, canvas, colors);
+                        break;
+                    case 'clean':
+                        this.drawCleanPattern(ctx, canvas, colors);
+                        break;
+                    case 'structured':
+                        this.drawStructuredPattern(ctx, canvas, colors);
+                        break;
+                    case 'appetizing':
+                        this.drawAppetizingPattern(ctx, canvas, colors);
+                        break;
+                    default:
+                        this.drawModernPattern(ctx, canvas, colors);
+                }
+            }
+
+            drawOrganicPattern(ctx, canvas, colors) {
+                // גרדיאנט רדיאלי עם צורות אורגניות
+                const gradient = ctx.createRadialGradient(canvas.width * 0.3, canvas.height * 0.3, 0, 
+                                                          canvas.width * 0.5, canvas.height * 0.5, canvas.width * 0.8);
+                gradient.addColorStop(0, colors[0]);
+                gradient.addColorStop(0.5, colors[1]);
+                gradient.addColorStop(1, colors[2]);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // הוספת עיגולים אורגניים
+                ctx.globalAlpha = 0.3;
+                for (let i = 0; i < 5; i++) {
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height;
+                    const radius = 100 + Math.random() * 200;
+                    const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+                    grad.addColorStop(0, colors[i % colors.length]);
+                    grad.addColorStop(1, 'transparent');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            drawGeometricPattern(ctx, canvas, colors) {
+                // רקע בסיס
+                ctx.fillStyle = colors[0];
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // משולשים גאומטריים
+                ctx.globalAlpha = 0.4;
+                for (let i = 0; i < 8; i++) {
+                    ctx.fillStyle = colors[i % colors.length];
+                    ctx.beginPath();
+                    const x1 = Math.random() * canvas.width;
+                    const y1 = Math.random() * canvas.height;
+                    const x2 = x1 + (Math.random() - 0.5) * 400;
+                    const y2 = y1 + (Math.random() - 0.5) * 400;
+                    const x3 = x1 + (Math.random() - 0.5) * 400;
+                    const y3 = y1 + (Math.random() - 0.5) * 400;
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.lineTo(x3, y3);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            drawProfessionalPattern(ctx, canvas, colors) {
+                // גרדיאנט אלכסוני מקצועי
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                gradient.addColorStop(0, colors[0]);
+                gradient.addColorStop(0.5, colors[1]);
+                gradient.addColorStop(1, colors[2]);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // קווים מקצועיים
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 10; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * canvas.width / 10, 0);
+                    ctx.lineTo((i + 5) * canvas.width / 10, canvas.height);
+                    ctx.stroke();
+                }
+            }
+
+            drawArtisticPattern(ctx, canvas, colors) {
+                // רקע דינמי עם כתמים צבעוניים
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, colors[0]);
+                gradient.addColorStop(1, colors[1]);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // כתמים אמנותיים
+                ctx.globalAlpha = 0.6;
+                for (let i = 0; i < 12; i++) {
+                    ctx.fillStyle = colors[i % colors.length];
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height;
+                    const size = 50 + Math.random() * 150;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            drawWavesPattern(ctx, canvas, colors) {
+                // גרדיאנט כחול
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, colors[0]);
+                gradient.addColorStop(1, colors[1]);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // גלים
+                ctx.globalAlpha = 0.3;
+                for (let wave = 0; wave < 5; wave++) {
+                    ctx.fillStyle = colors[wave % colors.length];
+                    ctx.beginPath();
+                    ctx.moveTo(0, canvas.height * 0.5 + wave * 100);
+                    for (let x = 0; x <= canvas.width; x += 10) {
+                        const y = canvas.height * 0.5 + wave * 100 + Math.sin(x * 0.01 + wave) * 50;
+                        ctx.lineTo(x, y);
+                    }
+                    ctx.lineTo(canvas.width, canvas.height);
+                    ctx.lineTo(0, canvas.height);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            drawGradientPattern(ctx, canvas, colors) {
+                // שקיעה יפה
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                for (let i = 0; i < colors.length; i++) {
+                    gradient.addColorStop(i / (colors.length - 1), colors[i]);
+                }
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // שמש/ירח
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.beginPath();
+                ctx.arc(canvas.width * 0.8, canvas.height * 0.3, 80, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            drawCosmicPattern(ctx, canvas, colors) {
+                // חלל כהה
+                ctx.fillStyle = colors[0];
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // כוכבים
+                ctx.fillStyle = 'white';
+                for (let i = 0; i < 100; i++) {
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height;
+                    const size = Math.random() * 3;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // כוכבי לכת
+                ctx.globalAlpha = 0.7;
+                for (let i = 0; i < 3; i++) {
+                    const gradient = ctx.createRadialGradient(
+                        Math.random() * canvas.width, Math.random() * canvas.height, 0,
+                        Math.random() * canvas.width, Math.random() * canvas.height, 150
+                    );
+                    gradient.addColorStop(0, colors[i + 1]);
+                    gradient.addColorStop(1, 'transparent');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 150, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            drawCleanPattern(ctx, canvas, colors) {
+                // רקע נקי ובהיר
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                gradient.addColorStop(0, colors[0]);
+                gradient.addColorStop(1, colors[1]);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // אלמנטים מינימליסטיים
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 3;
+                for (let i = 0; i < 5; i++) {
+                    ctx.beginPath();
+                    ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 
+                            50 + Math.random() * 100, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+
+            drawStructuredPattern(ctx, canvas, colors) {
+                // רקע עם מבנה
+                ctx.fillStyle = colors[0];
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // רשת מסודרת
+                ctx.strokeStyle = colors[1];
+                ctx.lineWidth = 2;
+                ctx.globalAlpha = 0.3;
+                
+                const spacing = 100;
+                for (let x = 0; x < canvas.width; x += spacing) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, canvas.height);
+                    ctx.stroke();
+                }
+                for (let y = 0; y < canvas.height; y += spacing) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                }
+                
+                // ריבועים צבעוניים
+                ctx.globalAlpha = 0.5;
+                for (let i = 0; i < 8; i++) {
+                    ctx.fillStyle = colors[i % colors.length];
+                    const x = Math.floor(Math.random() * (canvas.width / spacing)) * spacing;
+                    const y = Math.floor(Math.random() * (canvas.height / spacing)) * spacing;
+                    ctx.fillRect(x, y, spacing, spacing);
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            drawAppetizingPattern(ctx, canvas, colors) {
+                // רקע חם ומזמין
+                const gradient = ctx.createRadialGradient(
+                    canvas.width * 0.5, canvas.height * 0.5, 0,
+                    canvas.width * 0.5, canvas.height * 0.5, canvas.width * 0.7
+                );
+                gradient.addColorStop(0, colors[0]);
+                gradient.addColorStop(0.5, colors[1]);
+                gradient.addColorStop(1, colors[2]);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // בועות
+                ctx.globalAlpha = 0.4;
+                for (let i = 0; i < 15; i++) {
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height;
+                    const radius = 30 + Math.random() * 80;
+                    const grad = ctx.createRadialGradient(x, y, 0, x, y, radius);
+                    grad.addColorStop(0, colors[i % colors.length]);
+                    grad.addColorStop(1, 'transparent');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            drawModernPattern(ctx, canvas, colors) {
+                // סגנון מודרני עם גרדיאנט אלכסוני
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                for (let i = 0; i < colors.length; i++) {
+                    gradient.addColorStop(i / (colors.length - 1), colors[i]);
+                }
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // אלמנטים מודרניים
+                ctx.globalAlpha = 0.2;
+                for (let i = 0; i < 6; i++) {
+                    ctx.fillStyle = colors[i % colors.length];
+                    const x = Math.random() * canvas.width;
+                    const y = Math.random() * canvas.height;
+                    const width = 100 + Math.random() * 200;
+                    const height = 100 + Math.random() * 200;
+                    ctx.fillRect(x, y, width, height);
+                }
+                ctx.globalAlpha = 1;
             }
 
             async summarizeText() {
@@ -1853,7 +2237,7 @@ ${currentSlides}
                 
                 // הסתרת מסך התחלה והצגת השקפים
                 document.getElementById('welcomeScreen').style.display = 'none';
-                document.getElementById('mainContainer').style.display = 'flex';
+                document.getElementById('mainContainer').style.display = 'block';
                 
                 app.slides.renderSlides();
                 app.ui.closePresentationsHistory();
