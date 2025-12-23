@@ -853,40 +853,8 @@
             getRandomTemplate() {
                 return this.templates[Math.floor(Math.random() * this.templates.length)];
             }
-        }
-
-        // ========================================
-        // Slide Manager - ניהול שקפים
-        // ========================================
-
-        class SlideManager {
-            constructor() {
-                this.slides = [];
-                this.currentSlideIndex = -1;
-                this.sortable = null;
-            }
-
-            addNewSlide(type = 'content') {
-                app.history.saveState();
-                
-                const template = app.templates.getRandomTemplate();
-                
-                const newSlide = {
-                    id: Utils.generateId(),
-                    title: 'כותרת שקף חדש',
-                    content: ['נקודה ראשונה', 'נקודה שניה', 'נקודה שלישית'],
-                    gradient: this.generateGradientForSlide('כותרת שקף חדש', this.slides.length),
-                    notes: '',
-                    layout: template.style.layout,
-                    style: { ...template.style }
-                };
-
-                this.slides.push(newSlide);
-                this.currentSlideIndex = this.slides.length - 1;
-                this.refreshAll();
-                app.ui.showToast('שקף חדש נוצר בהצלחה!', 'success');
-            }
-
+            
+            // NOTE: Moved this method from AIManager to here as it's related to template generation logic.
             generateGradientForSlide(slideTitle, index) {
                 const gradients = [
                     'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -911,6 +879,39 @@
                 }, 0);
                 
                 return gradients[Math.abs(hash) % gradients.length];
+            }
+        }
+
+        // ========================================
+        // Slide Manager - ניהול שקפים
+        // ========================================
+
+        class SlideManager {
+            constructor() {
+                this.slides = [];
+                this.currentSlideIndex = -1;
+                this.sortable = null;
+            }
+
+            addNewSlide(type = 'content') {
+                app.history.saveState();
+                
+                const template = app.templates.getRandomTemplate();
+                
+                const newSlide = {
+                    id: Utils.generateId(),
+                    title: 'כותרת שקף חדש',
+                    content: ['נקודה ראשונה', 'נקודה שניה', 'נקודה שלישית'],
+                    gradient: app.templates.generateGradientForSlide('כותרת שקף חדש', this.slides.length), // CORRECTED CALL
+                    notes: '',
+                    layout: template.style.layout,
+                    style: { ...template.style }
+                };
+
+                this.slides.push(newSlide);
+                this.currentSlideIndex = this.slides.length - 1;
+                this.refreshAll();
+                app.ui.showToast('שקף חדש נוצר בהצלחה!', 'success');
             }
 
             loadSlides(slidesData, index = 0) {
@@ -1410,7 +1411,7 @@
                             id: Utils.generateId(),
                             title: s.title || 'כותרת',
                             content: Array.isArray(s.content) ? s.content : ['תוכן'],
-                            gradient: this.generateGradientForSlide(s.title, index),
+                            gradient: app.templates.generateGradientForSlide(s.title, index),
                             notes: s.notes || '',
                             layout: template.style.layout,
                             style: { ...template.style }
@@ -1431,7 +1432,7 @@
                 
                 const slide = app.slides.slides[app.slides.currentSlideIndex];
                 
-                const newGradient = this.generateGradientForSlide(slide.title, Math.random() * 1000);
+                const newGradient = app.templates.generateGradientForSlide(slide.title, Math.random() * 1000);
                 app.slides.updateSlideContent('gradient', newGradient);
                 app.ui.showToast('רקע חדש נוצר!', 'success');
             }
@@ -1556,7 +1557,7 @@ ${text.substring(0, 15000)}
                             id: Utils.generateId(),
                             title: s.title,
                             content: s.content,
-                            gradient: this.generateGradientForSlide(s.title, index),
+                            gradient: app.templates.generateGradientForSlide(s.title, index),
                             notes: 'נוצר מסיכום אוטומטי',
                             layout: template.style.layout,
                             style: { ...template.style }
@@ -1586,7 +1587,7 @@ ${text.substring(0, 15000)}
 
         class ExportManager {
             async exportToPptx() {
-                if (this.slides.length === 0) {
+                if (app.slides.slides.length === 0) {
                     app.ui.showToast('אין שקפים לייצא', 'error');
                     return;
                 }
@@ -1600,9 +1601,9 @@ ${text.substring(0, 15000)}
                     pptx.author = 'AI Presentation Generator';
                     pptx.company = 'Smart Presentations';
                     pptx.subject = 'AI Generated Presentation';
-                    pptx.title = this.slides[0]?.title || 'מצגת';
+                    pptx.title = app.slides.slides[0]?.title || 'מצגת';
 
-                    for (const slideData of this.slides) {
+                    for (const slideData of app.slides.slides) {
                         const slide = pptx.addSlide();
                         
                         const style = slideData.style || {};
@@ -1658,7 +1659,7 @@ ${text.substring(0, 15000)}
                         }
                     }
 
-                    const fileName = `${this.slides[0]?.title || 'מצגת'}_${new Date().getTime()}.pptx`;
+                    const fileName = `${app.slides.slides[0]?.title || 'מצגת'}_${new Date().getTime()}.pptx`;
                     await pptx.writeFile({ fileName });
                     
                     app.ui.showToast('המצגת יוצאה בהצלחה!', 'success');
