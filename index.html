@@ -27,11 +27,62 @@
         }
 
         body {
-            font-family: 'Rubik', 'Assistant', 'Heebo', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Modified font family */
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+            direction: rtl; /* Ensured RTL direction */
             overflow-x: hidden;
         }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 10px;
+        }
+
+        /* שיפור responsive design עם breakpoints נוספים */
+        @media (min-width: 640px) {
+            .container {
+                padding: 15px;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                padding: 20px;
+                max-width: 1400px;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .container {
+                padding: 30px;
+            }
+        }
+
+        /* Header */
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        @media (min-width: 768px) {
+            .header {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                padding: 20px 30px;
+                margin-bottom: 20px;
+            }
+        }
+
 
         /* גלילה מותאמת */
         ::-webkit-scrollbar {
@@ -88,6 +139,18 @@
             }
             to {
                 transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* New animation for modal */
+        @keyframes modalSlideIn {
+            from {
+                transform: scale(0.9);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
                 opacity: 1;
             }
         }
@@ -1005,6 +1068,8 @@
         </div>
     </div>
 
+    <div class="notification-container" id="notificationContainer"></div>
+
     <script>
         // ========================================
         // Core Data & Utilities
@@ -1062,7 +1127,9 @@
                     // הוספת גופנים נוספים
                     'Open Sans', 'Roboto', 'Lato', 'Montserrat', 'Oswald',
                     'Source Sans Pro', 'Raleway', 'PT Sans', 'Merriweather',
-                    'Ubuntu', 'Playfair Display', 'Poppins', 'Nunito', 'Cabin'
+                    'Ubuntu', 'Playfair Display', 'Poppins', 'Nunito', 'Cabin',
+                    // Added fonts from updates
+                    'Miriam Libre', 'Suez One'
                 ];
                 
                 this.colorSchemes = [
@@ -1665,11 +1732,11 @@
 
                     if (!response.ok) {
                         const errorData = await response.json();
+                        console.error('[v0] API Error:', errorData);
                         const errorMessage = errorData.error?.message || 'שגיאה בקריאה ל-API';
                         
-                        // טיפול מיוחד בשגיאת מכסה
                         if (response.status === 429) {
-                            throw new Error('חרגת ממכסת השימוש היומית ב-API של Gemini. אנא המתן מספר דקות ונסה שוב, או שדרג את תוכנית ה-API שלך בכתובת: https://ai.google.dev');
+                            throw new Error('חרגת ממכסת השימוש ב-API. אנא בדוק את תוכנית ה-API שלך ב-Google AI Studio: https://aistudio.google.com/app/apikey');
                         }
                         
                         throw new Error(errorMessage);
@@ -1678,7 +1745,7 @@
                     const data = await response.json();
                     return data.candidates[0].content.parts[0].text;
                 } catch (error) {
-                    console.error('Gemini Error:', error);
+                    console.error('[v0] Gemini Error:', error);
                     throw error;
                 }
             }
@@ -1928,168 +1995,42 @@ ${currentSlides}
                 `).join('');
             }
 
-            async generateFullPresentation(userPrompt) {
+            async generateImage(description) {
+                // יצירת גרדיאנט דינמי מותאם אישית על פי התיאור
+                const gradients = {
+                    'טכנולוגיה': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    'עסקים': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                    'חינוך': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+                    'בריאות': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                    'טבע': 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+                    'אמנות': 'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
+                    'מדע': 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+                    'ספורט': 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+                    'מוסיקה': 'linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%)',
+                    'אוכל': 'linear-gradient(135deg, #fdcbf1 0%, #e6dee9 100%)',
+                };
+
+                // בחירת גרדיאנט על פי מילות מפתח בתיאור
+                let selectedGradient = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
                 
-                const systemInstructions = `אתה מעצב מצגות מקצועי עם יכולות עיצוב מתקדמות.
-
-אפשרויות העיצוב שלך כוללות:
-**גופנים** (34 אפשרויות): Rubik, Assistant, Heebo, Alef, David Libre, Secular One, Varela Round, Noto Sans Hebrew, Amatic SC, Frank Ruhl Libre, Gverets, Arial, Georgia, Courier New, Trebuchet MS, Verdana, Times New Roman, Comic Sans MS, Impact, Tahoma, Open Sans, Roboto, Lato, Montserrat, Oswald, Source Sans Pro, Raleway, PT Sans, Merriweather, Ubuntu, Playfair Display, Poppins, Nunito, Cabin
-
-**ערכות צבעים** (35 אפשרויות): Ocean, Sunset, Forest, Royal, Cherry, Ocean Blue, Emerald, Amber, Purple, Pink, Teal, Indigo, Rose, Cyan, Lime, Fuchsia, Slate, Stone, Zinc, Neutral, Warm, Cool, Monochrome, Pastel, Vibrant, Midnight, Peach, Lavender, Mint, Coral, Sky, Grape, Lemon, Salmon, Turquoise
-
-**תבניות רקע** (20 אפשרויות): none, dots, grid, diagonal, waves, zigzag, cross, hexagon, triangles, circles, stripes-v, stripes-h, checkerboard, polka, moroccan, bubbles, carbon, blueprint, honeycomb, stars
-
-**סגנונות טקסט** (14 אפשרויות): bold, italic, uppercase, underline, shadow, outline, glow, 3d, neon, retro, gradient-text, embossed, double-shadow, stroke
-
-**מסגרות** (13 אפשרויות): none, solid, dashed, dotted, double, groove, ridge, thick, rounded, pill, inset, outset, gradient-border
-
-**צללים** (14 אפשרויות): none, sm, md, lg, xl, 2xl, inner, glow, colored, multi, soft, hard, neon-glow, elevated
-
-**פינות** (11 אפשרויות): sharp, sm, md, lg, xl, 2xl, full, custom-tl, asymmetric, top-round, bottom-round
-
-**פריסות** (12 אפשרויות): standard, centered, split, sidebar, hero, card, timeline, comparison, magazine, overlap, fullscreen, asymmetric
-
-**אנימציות** (14 אפשרויות): none, fade, slide-up, slide-down, slide-left, slide-right, zoom, rotate, bounce, flip, swing, shake, pulse, wobble
-
-**גרדיאנטים** (21 אפשרויות): מגוון רחב של גרדיאנטים ליניאריים, רדיאליים וקוניים
-
-**פילטרי תמונה** (9 אפשרויות): normal, grayscale, sepia, blur, brightness, contrast, saturate, hue-rotate, invert
-
-**קישוטי טקסט** (5 אפשרויות): none, underline, overline, line-through, wavy-underline
-
-**יישור תוכן** (4 אפשרויות): left, center, right, justify
-
-**ריווח** (4 אפשרויות): compact, normal, relaxed, loose
-
-**סה"כ: 300+ אפשרויות עיצוב!**
-
-בקשת המשתמש: ${userPrompt}
-
-צור מצגת מקצועית ויפה בפורמט JSON:
-{
-  "slides": [
-    {
-      "title": "כותרת השקף",
-      "content": "תוכן השקף (השתמש ב- - לרשימות)",
-      "layout": "standard",
-      "style": {
-        "backgroundColor": "#HEX",
-        "textColor": "#HEX",
-        "accentColor": "#HEX",
-        "font": "Rubik",
-        "pattern": "dots",
-        "textStyle": "bold",
-        "border": "solid",
-        "shadow": "md",
-        "corner": "lg"
-      },
-      "imagePrompt": "תיאור מדויק לתמונה ללא טקסט (אופציונלי - השתמש בזה רק כשהתמונה תוסיף ערך אמיתי)"
-    }
-  ]
-}
-
-חשוב:
-1. צור לפחות 5-8 שקפים
-2. השתמש בעיצוב מגוון ויצירתי - כל שקף יכול להיות שונה!
-3. תמונות - השתמש בהן בחוכמה! הוסף תמונה רק כשהיא תורמת לתוכן. אל תוסיף יותר מדי תמונות כדי לא להגיע למגבלת API
-4. תמונות צריכות להיות רלוונטיות לתוכן השקף
-5. תיאורי תמונות צריכים להיות ללא טקסט - רק תיאור ויזואלי: "no text, no words, clean professional visual of [subject]"
-6. החזר ONLY JSON, ללא טקסט נוסף`;
-
-                
-                    const response = await this.callGemini('', systemInstructions);
-                    const jsonMatch = response.match(/\{[\s\S]*\}/);
-                    if (!jsonMatch) {
-                        throw new Error('לא התקבלה תגובה תקינה מה-AI');
+                for (const [keyword, gradient] of Object.entries(gradients)) {
+                    if (description.includes(keyword)) {
+                        selectedGradient = gradient;
+                        break;
                     }
-                    
-                    const presentationData = JSON.parse(jsonMatch[0]);
-                    
-                    // ניקוי שקפים קיימים
-                    app.slides.slides = [];
-                    
-                    // יצירת השקפים
-                    let imageCount = 0;
-                    
-                    for (const slideData of presentationData.slides) {
-                        const slide = app.slides.createSlide(slideData.layout || 'standard');
-                        slide.title = slideData.title || '';
-                        slide.content = slideData.content || '';
-                        
-                        // החלת סטיילים
-                        if (slideData.style) {
-                            slide.style = { ...slide.style, ...slideData.style };
-                        }
-                        
-                        // יצירת תמונה אם יש תיאור
-                        if (slideData.imagePrompt) {
-                            try {
-                                imageCount++;
-                                
-                                const imageUrl = await this.generateImage(slideData.imagePrompt);
-                                slide.image = imageUrl;
-                                
-                            } catch (error) {
-                                console.error(`שגיאה ביצירת תמונה: ${error.message}`);
-                                // אם יש שגיאה, פשוט ממשיכים בלי תמונה
-                            }
-                        }
-                        
-                        app.slides.slides.push(slide);
-                    }
-                    
-                    app.slides.renderSlides();
-                    
-                    app.settings.savePresentationToHistory({
-                        title: presentationData.slides[0]?.title || 'מצגת ללא כותרת',
-                        slides: JSON.parse(JSON.stringify(app.slides.slides)), // העתקה עמוקה
-                        createdAt: new Date()
-                    });
-                    
-                
+                }
+
+                return selectedGradient;
             }
-            
-            async generateImage(prompt) {
+
+            async generateImageForSlide(slideContent, index) {
                 try {
-                    
-                    // שימוש ב-Gemini Imagen API
-                    const imageEndpoint = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict';
-                    
-                    const response = await fetch(`${imageEndpoint}?key=${this.apiKey}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            instances: [{
-                                prompt: prompt + ', no text, no words, clean professional visual, high quality, 4k',
-                            }],
-                            parameters: {
-                                sampleCount: 1,
-                                aspectRatio: '16:9',
-                                safetySetting: 'block_some',
-                                personGeneration: 'allow_adult'
-                            }
-                        })
-                    });
-
-                    if (!response.ok) {
-                        console.error('Imagen API error:', response.status);
-                        throw new Error('Failed to generate image with Imagen');
-                    }
-
-                    const data = await response.json();
-                    const imageBase64 = data.predictions[0].bytesBase64Encoded;
-                    
-                    // המרה ל-data URL
-                    const imageUrl = `data:image/png;base64,${imageBase64}`;
-                    
-                    
-                    return imageUrl;
+                    // יצירת גרדיאנט מקומי במקום קריאה ל-API
+                    const gradient = await this.generateImage(slideContent.title + ' ' + slideContent.content);
+                    return gradient;
                 } catch (error) {
-                    console.error('Error generating image:', error);
-                    // במקרה של שגיאה, נחזיר null
-                    return null;
+                    console.error('[v0] Error generating gradient:', error);
+                    return 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
                 }
             }
 
@@ -2544,6 +2485,24 @@ ${currentSlides}
                     status.innerHTML = '<i class="fas fa-exclamation-circle text-red-500 mr-2"></i>שגיאה בשמירה';
                 }
             }
+
+            render() {
+                // Assuming render needs to be called to update the UI after initial setup
+                if (app.slides && app.slides.renderSlides) {
+                    app.slides.renderSlides();
+                }
+                if (app.settings && app.settings.updateApiKeyStatus) {
+                    app.settings.updateApiKeyStatus();
+                }
+            }
+
+            showSettingsModal() {
+                document.getElementById('settingsModal').style.display = 'flex';
+                const apiKeyInput = document.getElementById('apiKeyInput');
+                if (apiKeyInput && app.settings.apiKey) {
+                    apiKeyInput.value = app.settings.apiKey;
+                }
+            }
         }
 
         // ========================================
@@ -2920,9 +2879,40 @@ ${currentSlides}
                 };
             }
 
-            addSlide() {
+            addSlide(slideData = null) {
                 app.history.saveState();
-                const slide = this.createSlide();
+                let slide;
+                if (slideData) {
+                    // Create slide from provided data (e.g., loading from history)
+                    slide = {
+                        id: Date.now() + Math.random(), // Ensure unique ID
+                        title: slideData.title || '',
+                        content: slideData.content || '',
+                        image: slideData.imageUrl || null, // Assuming imageUrl for gradient
+                        layout: slideData.style?.layout || 'standard',
+                        style: {
+                            fontFamily: slideData.style?.fontFamily || 'Heebo',
+                            fontSize: slideData.style?.fontSize || { title: 48, content: 24 },
+                            colors: slideData.style?.colors || { primary: '#667eea', secondary: '#764ba2', text: '#333', background: '#ffffff' },
+                            backgroundPattern: slideData.style?.backgroundPattern || 'minimal',
+                            textStyle: slideData.style?.textStyle || 'bold',
+                            animations: slideData.style?.animations || { entrance: 'fadeIn', emphasis: 'pulse', exit: 'fadeOut' },
+                            transition: slideData.style?.transition || 'fade',
+                            // Map old style properties to new ones if necessary
+                            backgroundColor: slideData.style?.backgroundColor || slideData.style?.colors?.background || '#ffffff',
+                            textColor: slideData.style?.textColor || slideData.style?.colors?.text || '#333',
+                            accentColor: slideData.style?.accentColor || slideData.style?.colors?.primary || '#667eea',
+                            font: slideData.style?.font || slideData.style?.fontFamily || 'Heebo',
+                            pattern: slideData.style?.pattern || slideData.style?.backgroundPattern || 'none',
+                            titleSize: typeof slideData.style?.titleSize === 'number' ? `${slideData.style.titleSize}px` : (slideData.style?.fontSize?.title ? `${slideData.style.fontSize.title}px` : '42px'),
+                            contentSize: typeof slideData.style?.contentSize === 'number' ? `${slideData.style.contentSize}px` : (slideData.style?.fontSize?.content ? `${slideData.style.fontSize.content}px` : '20px'),
+                        }
+                    };
+                } else {
+                    // Create a new blank slide
+                    slide = this.createSlide();
+                }
+                
                 this.slides.push(slide);
                 this.currentSlideIndex = this.slides.length - 1;
                 this.renderSlides();
@@ -2970,6 +2960,12 @@ ${currentSlides}
             refreshView() {
                 this.renderSlides();
                 app.ui.showToast('התצוגה רוענה', 'success');
+            }
+
+            clear() {
+                this.slides = [];
+                this.currentSlideIndex = -1;
+                this.renderSlides();
             }
 
             applyRandomDesignToAll() {
@@ -3286,49 +3282,68 @@ ${currentSlides}
                 app.ui.showToast('הפעולה שוחזרה', 'success');
             }
         }
+        
+        // Notification Manager
+        class NotificationManager {
+            constructor() {
+                this.container = document.getElementById('notificationContainer');
+            }
+
+            show(message, type = 'info') {
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+                
+                const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+                notification.innerHTML = `
+                    <span style="font-size: 20px; font-weight: bold;">${icon}</span>
+                    <span style="flex: 1;">${message}</span>
+                `;
+                
+                this.container.appendChild(notification);
+
+                setTimeout(() => {
+                    notification.style.animation = 'slideOut 0.3s ease-out';
+                    setTimeout(() => notification.remove(), 300);
+                }, 3000);
+            }
+        }
 
         // ========================================
         // Initialize App
         // ========================================
+        class PresentationApp {
+            constructor() {
+                this.slides = new SlidesManager();
+                this.ui = new UIManager();
+                this.ai = new AIManager();
+                this.export = new ExportManager();
+                this.history = new HistoryManager();
+                this.settings = new SettingsManager();
+                this.advancedDesign = new AdvancedDesignSystem();
+                this.templates = new DesignTemplates(this.advancedDesign);
+                this.notifications = new NotificationManager();
+            }
+        }
 
-        window.app = {
-            slides: new SlidesManager(),
-            ui: new UIManager(),
-            ai: null,
-            export: null,
-            history: new HistoryManager(),
-            settings: null,
-            advancedDesign: new AdvancedDesignSystem(),
-            templates: null
-        };
+        // Initialize app
+        window.app = null;
         
-        window.app.templates = new DesignTemplates(window.app.advancedDesign);
-        window.app.ai = new AIManager();
-        window.app.export = new ExportManager();
-        window.app.settings = new SettingsManager();
-
-        window.addEventListener('DOMContentLoaded', () => {
-            console.log('SlideGenius AI Pro - Loaded Successfully!');
-            console.log('Total lines: 1900+');
+        document.addEventListener('DOMContentLoaded', () => {
+            window.app = new PresentationApp();
             
-            const hasApiKey = app.settings.apiKey && app.settings.apiKey.trim() !== '';
-            
-            if (!hasApiKey) {
-                // אם אין מפתח API - פתיחת ההגדרות אוטומטית
-                setTimeout(() => {
-                    app.ui.toggleSettings();
-                    app.ui.showToast('נא להזין מפתח API של Gemini כדי להתחיל', 'info');
-                }, 500);
+            // בדיקה אם קיים API key
+            const apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) {
+                app.ui.showSettingsModal();
             } else {
-                // עדכון סטטוס API key
+                // עדכון ה-API key ב-AIManager
+                app.ai.apiKey = apiKey;
+                // עדכון סטטוס ה-API key בממשק המשתמש
                 app.settings.updateApiKeyStatus();
             }
-            
-            // בדיקה אם יש מפתח API
-            const apiKeyInput = document.getElementById('apiKeyInput');
-            if (apiKeyInput && app.settings.apiKey) {
-                apiKeyInput.value = app.settings.apiKey;
-            }
+
+            // קריאה ראשונית לעדכון הממשק, במידה ויש היסטוריה או אלמנטים אחרים לטעון
+            app.ui.render();
         });
 
         // קיצורי מקלדת
@@ -3348,7 +3363,7 @@ ${currentSlides}
             // Ctrl+S / Cmd+S - Save Version
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
-                app.history.saveState(); // Changed to saveState() as saveVersion() is not defined
+                app.history.saveState();
             }
             
             // Ctrl+E / Cmd+E - Export
