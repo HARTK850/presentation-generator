@@ -68,6 +68,11 @@
             0% { background-position: -1000px 0; }
             100% { background-position: 1000px 0; }
         }
+        
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
 
         .animate-fadeIn {
             animation: fadeIn 0.5s ease-out;
@@ -1855,6 +1860,22 @@
                 }, 3000);
             }
 
+            updateHistoryButtons() {
+                // עדכון מצב הכפתורים בהתאם למחסניות undo/redo
+                const undoButton = document.querySelector('[onclick*="undo()"]');
+                const redoButton = document.querySelector('[onclick*="redo()"]');
+                
+                if (undoButton) {
+                    undoButton.disabled = app.history.undoStack.length === 0;
+                    undoButton.style.opacity = app.history.undoStack.length === 0 ? '0.5' : '1';
+                }
+                
+                if (redoButton) {
+                    redoButton.disabled = app.history.redoStack.length === 0;
+                    redoButton.style.opacity = app.history.redoStack.length === 0 ? '0.5' : '1';
+                }
+            }
+
             toggleSettings() {
                 const modal = document.getElementById('settingsModal');
                 modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
@@ -1959,17 +1980,15 @@
                 const status = document.getElementById('apiKeyStatus');
                 const hasKey = !!app.ai.getApiKey();
                 
-                if (hasKey) {
-                    status.innerHTML = '<i class="fas fa-check-circle ml-2"></i> מפתח API מוגדר';
-                    status.className = 'text-sm px-4 py-2 rounded-lg bg-green-50 text-green-600 font-semibold border border-green-200';
-                } else {
-                    status.innerHTML = '<i class="fas fa-key ml-2"></i> נדרש מפתח API';
-                    status.className = 'text-sm px-4 py-2 rounded-lg bg-red-50 text-red-600 font-semibold border border-red-200';
+                if (status) {
+                    if (hasKey) {
+                        status.innerHTML = '<i class="fas fa-check-circle ml-1 text-green-600"></i> מפתח API מוגדר';
+                        status.className = 'text-green-600 font-medium';
+                    } else {
+                        status.innerHTML = '<i class="fas fa-exclamation-triangle ml-1 text-orange-600"></i> נדרש מפתח API';
+                        status.className = 'text-orange-600 font-medium';
+                    }
                 }
-            }
-
-            updateHistoryButtons() {
-                // ניתן להוסיף כאן עדכון ויזואלי לכפתורי Undo/Redo
             }
         }
 
@@ -2136,7 +2155,7 @@
 החזר רק את מערך ה-JSON, בלי הסברים נוספים.
 `;
 
-                const result = await this.callGemini(`צור מצגת מקצועית על הנושא: ${topic}`, systemPrompt);
+                const result = await this.callGemini(prompt, systemPrompt);
                 
                 if (result && Array.isArray(result)) {
                     app.ui.showLoading(true, 'מכין עיצובים מתקדמים...');
@@ -2374,6 +2393,18 @@ ${text.substring(0, 15000)}
         // ========================================
 
         class ExportManager {
+            cleanMarkdown(text) {
+                if (!text) return text;
+                return text
+                    .replace(/\*\*(.+?)\*\*/g, '$1') // הסרת **bold**
+                    .replace(/\*(.+?)\*/g, '$1')     // הסרת *italic*
+                    .replace(/__(.+?)__/g, '$1')     // הסרת __bold__
+                    .replace(/_(.+?)_/g, '$1')       // הסרת _italic_
+                    .replace(/~~(.+?)~~/g, '$1')     // הסרת ~~strikethrough~~
+                    .replace(/`(.+?)`/g, '$1')       // הסרת `code`
+                    .trim();
+            }
+
             async exportToPptx() {
                 if (app.slides.slides.length === 0) {
                     app.ui.showToast('אין שקפים לייצא', 'error');
@@ -2381,7 +2412,7 @@ ${text.substring(0, 15000)}
                 }
 
                 try {
-                    app.ui.showToast('מייצא מצגת...', 'info');
+                    app.ui.showLoading(true, 'מייצא מצגת...');
                     
                     const pptx = new PptxGenJS();
                     
@@ -2390,8 +2421,8 @@ ${text.substring(0, 15000)}
                     pptx.author = 'SlideGenius AI Pro';
                     pptx.company = 'AI Presentations';
                     pptx.subject = 'AI Generated Presentation';
-                    pptx.title = app.slides.slides[0]?.title || 'מצגת';
-                    pptx.rtlMode = true; // תמיכה ב-RTL
+                    pptx.title = this.cleanMarkdown(app.slides.slides[0]?.title) || 'מצגת';
+                    pptx.rtlMode = true;
 
                     for (const slideData of app.slides.slides) {
                         const slide = pptx.addSlide();
@@ -2400,80 +2431,100 @@ ${text.substring(0, 15000)}
                         const bgColor = style.backgroundColor || '#ffffff';
                         const textColor = style.textColor || '#1f2937';
                         const accentColor = style.accentColor || '#667eea';
-                        const fontFace = style.font || 'Arial';
-                        const titleSize = parseInt(style.titleSize) || 32;
-                        const contentSize = parseInt(style.contentSize) || 18;
+                        const fontFace = 'Arial'; // פונט תואם לעברית
+                        const titleSize = Math.min(parseInt(style.titleSize) || 32, 44);
+                        const contentSize = Math.min(parseInt(style.contentSize) || 18, 24);
                         
                         // רקע השקף
-                        slide.background = { color: bgColor.replace('#', '') };
+                        if (bgColor.startsWith('linear-gradient') || bgColor.startsWith('radial-gradient')) {
+                            // המרת גרדיאנט לצבע אחיד (לוקחים את הצבע הראשון)
+                            const colorMatch = bgColor.match(/#[0-9a-fA-F]{6}/);
+                            if (colorMatch) {
+                                slide.background = { color: colorMatch[0].replace('#', '') };
+                            } else {
+                                slide.background = { color: 'ffffff' };
+                            }
+                        } else {
+                            slide.background = { color: bgColor.replace('#', '') };
+                        }
                         
-                        // אם יש תמונה - נוסיף אותה בצד
-                        let contentWidth = '85%';
+                        // פריסה בהתאם לאם יש תמונה
+                        let titleX = 0.5;
+                        let titleY = 0.7;
+                        let titleW = '90%';
+                        let titleH = 1.2;
+                        
                         let contentX = 0.5;
+                        let contentY = 2.2;
+                        let contentW = '90%';
                         
                         if (slideData.imageUrl) {
                             try {
-                                // הוספת תמונה לצד ימין
-                                slide.addImage({
+                                await slide.addImage({
                                     path: slideData.imageUrl,
                                     x: '52%',
-                                    y: 1.5,
+                                    y: 0.5,
                                     w: '45%',
-                                    h: 4.5,
-                                    sizing: { type: 'cover', w: '45%', h: 4.5 }
+                                    h: 5.5,
+                                    sizing: { type: 'cover', w: '45%', h: 5.5 }
                                 });
-                                contentWidth = '45%'; // צמצום רוחב התוכן כשיש תמונה
+                                
+                                // כשיש תמונה, הטקסט בצד שמאל
+                                titleW = '48%';
+                                contentW = '48%';
                             } catch (imgError) {
-                                console.error('Image load error:', imgError);
+                                console.error('Image load error in PPTX:', imgError);
                             }
                         }
 
-                        // כותרת השקף
-                        slide.addText(slideData.title, {
-                            x: contentX,
-                            y: 0.5,
-                            w: contentWidth,
-                            h: 1,
+                        const cleanTitle = this.cleanMarkdown(slideData.title);
+                        slide.addText(cleanTitle, {
+                            x: titleX,
+                            y: titleY,
+                            w: titleW,
+                            h: titleH,
                             fontSize: titleSize,
                             bold: true,
-                            color: accentColor.replace('#', ''),
+                            color: accentColor.replace('#', '').substring(0, 6),
                             align: 'right',
                             fontFace: fontFace,
-                            rtlMode: true
+                            rtlMode: true,
+                            valign: 'middle'
                         });
 
-                        // תוכן השקף
-                        const contentY = 1.8;
-                        const lineHeight = 0.6;
-                        
+                        const lineHeight = 0.65;
                         slideData.content.forEach((item, index) => {
-                            slide.addText(`• ${item}`, {
+                            const cleanContent = this.cleanMarkdown(item);
+                            slide.addText(`• ${cleanContent}`, {
                                 x: contentX,
                                 y: contentY + (index * lineHeight),
-                                w: contentWidth,
-                                h: 0.5,
+                                w: contentW,
+                                h: 0.6,
                                 fontSize: contentSize,
-                                color: textColor.replace('#', ''),
+                                color: textColor.replace('#', '').substring(0, 6),
                                 align: 'right',
                                 fontFace: fontFace,
                                 valign: 'top',
                                 rtlMode: true,
-                                paraSpaceAfter: 6
+                                bullet: false // השבתנו bullets כי אנחנו מוסיפים ידנית
                             });
                         });
 
                         // הערות למרצה
                         if (slideData.notes) {
-                            slide.addNotes(slideData.notes);
+                            const cleanNotes = this.cleanMarkdown(slideData.notes);
+                            slide.addNotes(cleanNotes);
                         }
                     }
 
-                    const fileName = `${app.slides.slides[0]?.title || 'מצגת'}_${new Date().getTime()}.pptx`;
+                    const fileName = `${this.cleanMarkdown(app.slides.slides[0]?.title) || 'מצגת'}_${new Date().getTime()}.pptx`;
                     await pptx.writeFile({ fileName });
                     
+                    app.ui.showLoading(false);
                     app.ui.showToast('המצגת יוצאה בהצלחה!', 'success');
                 } catch (error) {
                     console.error('Export error:', error);
+                    app.ui.showLoading(false);
                     app.ui.showToast('שגיאה בייצוא המצגת: ' + error.message, 'error');
                 }
             }
@@ -2662,6 +2713,7 @@ ${text.substring(0, 15000)}
             app.slides.loadFromLocalStorage();
             app.history.loadVersionsFromStorage();
             app.ui.updateApiKeyStatus();
+            app.ui.updateHistoryButtons(); // עדכון כפתורי undo/redo בהתחלה
             
             // בדיקה אם יש שקפים, אם לא - הצג הודעת ברוכים הבאים
             if (app.slides.slides.length === 0) {
